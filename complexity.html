@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Algorithm Time Complexity</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = { darkMode: 'class' }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .axis path, .axis line { stroke: #9ca3af; }
+        .dark .axis path, .dark .axis line { stroke: #6b7280; }
+        .axis text { fill: #4b5563; }
+        .dark .axis text { fill: #d1d5db; }
+        .grid line { stroke: #e5e7eb; stroke-opacity: 0.7; shape-rendering: crispEdges; }
+        .dark .grid line { stroke: #374151; }
+        .chart-tooltip {
+            @apply absolute bg-white dark:bg-gray-700 text-black dark:text-white text-xs rounded-md p-2 shadow-lg pointer-events-none;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
+
+    <!-- Navigation Bar -->
+    <nav class="bg-white dark:bg-gray-800 shadow-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                 <div class="flex items-center">
+                    <span class="font-bold text-xl text-blue-600 dark:text-blue-400">Max-Flow Hub</span>
+                    <div class="hidden md:block">
+                        <div class="ml-10 flex items-baseline space-x-4">
+                            <a href="index.html" class="text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2 rounded-md text-sm font-medium">Home</a>
+                            <a href="maxflow.html" class="text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2 rounded-md text-sm font-medium">Visualizer</a>
+                            <a href="residual.html" class="text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2 rounded-md text-sm font-medium">Residual Graphs</a>
+                            <a href="theorems.html" class="text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2 rounded-md text-sm font-medium">Theorems</a>
+                            <a href="complexity.html" class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white px-3 py-2 rounded-md text-sm font-medium">Complexity</a>
+                        </div>
+                    </div>
+                </div>
+                <button id="dark-mode-toggle" class="p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 focus:outline-none"><svg id="theme-icon-light" class="h-6 w-6 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg><svg id="theme-icon-dark" class="h-6 w-6 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg></button>
+            </div>
+        </div>
+    </nav>
+    
+    <div class="container mx-auto p-4 md:p-8">
+         <header class="text-center my-8">
+            <h1 class="text-4xl font-bold">Algorithm Time Complexity</h1>
+            <p class="text-lg mt-2 text-gray-600 dark:text-gray-400">Comparing theoretical (worst-case) performance of max-flow algorithms.</p>
+        </header>
+
+        <div class="flex flex-col lg:flex-row gap-8">
+            <!-- Controls and Info -->
+            <div class="lg:w-1/3 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg">
+                <h2 class="text-2xl font-semibold mb-4">Complexity Analysis</h2>
+                <div class="space-y-4 text-sm">
+                    <p>The chart visualizes the worst-case time complexities based on the number of vertices (V) and edges (E).</p>
+                    <div class="p-3 bg-gray-100 dark:bg-gray-700 rounded-md">
+                        <p class="font-bold text-red-500">Ford-Fulkerson: <span class="font-mono">O(E * |f*|)</span></p>
+                        <p class="text-xs">Depends on the max flow value (|f*|), which can be very large.</p>
+                    </div>
+                    <div class="p-3 bg-gray-100 dark:bg-gray-700 rounded-md">
+                        <p class="font-bold text-blue-500">Edmonds-Karp: <span class="font-mono">O(V * E²)</span></p>
+                        <p class="text-xs">Improves on Ford-Fulkerson by using BFS to find shortest augmenting paths.</p>
+                    </div>
+                    <div class="p-3 bg-gray-100 dark:bg-gray-700 rounded-md">
+                        <p class="font-bold text-green-500">Push-Relabel (generic): <span class="font-mono">O(V² * E)</span></p>
+                        <p class="text-xs">A different approach that "pushes" flow locally. With FIFO selection, improves to <span class="font-mono">O(V³)</span>.</p>
+                    </div>
+                </div>
+                <div class="mt-8 pt-4 border-t dark:border-gray-600">
+                    <h3 class="text-xl font-semibold mb-2">Adjust Parameters</h3>
+                    <div>
+                        <label for="nodes-slider" class="block font-medium">Vertices (V): <span id="nodes-value">50</span></label>
+                        <input id="nodes-slider" type="range" min="2" max="100" value="50" class="w-full">
+                    </div>
+                    <div class="mt-4">
+                        <label for="density-slider" class="block font-medium">Edge Density: <span id="density-value">30</span>%</label>
+                        <input id="density-slider" type="range" min="1" max="100" value="30" class="w-full">
+                        <p class="text-xs mt-1">Edges (E) = <span id="edges-count">~148</span></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Chart -->
+            <div class="lg:w-2/3 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg">
+                <h3 class="text-xl font-semibold text-center mb-2">Theoretical Runtime Growth (vs. Vertices V)</h3>
+                <div id="complexity-chart" class="w-full h-96"></div>
+            </div>
+        </div>
+    </div>
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const nodesSlider = document.getElementById('nodes-slider');
+        const densitySlider = document.getElementById('density-slider');
+        const nodesValue = document.getElementById('nodes-value');
+        const densityValue = document.getElementById('density-value');
+        const edgesCount = document.getElementById('edges-count');
+
+        // --- D3 Chart Setup ---
+        const container = document.getElementById('complexity-chart');
+        const margin = {top: 20, right: 30, bottom: 40, left: 60};
+        const width = container.clientWidth - margin.left - margin.right;
+        const height = 384 - margin.top - margin.bottom;
+
+        const svg = d3.select(container).append("svg")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+            .append("g")
+            .attr("transform", `translate(${margin.left},${margin.top})`);
+        
+        const tooltip = d3.select("body").append("div").attr("class", "chart-tooltip");
+
+        const x = d3.scaleLinear().range([0, width]);
+        const y = d3.scaleLog().range([height, 0]); // Log scale for better visualization
+
+        const xAxis = svg.append("g").attr("class", "axis x-axis").attr("transform", `translate(0,${height})`);
+        const yAxis = svg.append("g").attr("class", "axis y-axis");
+        
+        svg.append("text").attr("text-anchor", "end").attr("x", width/2 + margin.left)
+           .attr("y", height + margin.top + 10).text("Number of Vertices (V)");
+        svg.append("text").attr("text-anchor", "end").attr("transform", "rotate(-90)")
+           .attr("y", -margin.left + 20).attr("x", -height/2 + margin.bottom)
+           .text("Relative Operations (Log Scale)");
+
+        const line = d3.line().x(d => x(d.V)).y(d => y(d.ops));
+        
+        const ffPath = svg.append("path").attr("fill", "none").attr("stroke", "#ef4444").attr("stroke-width", 2.5);
+        const ekPath = svg.append("path").attr("fill", "none").attr("stroke", "#3b82f6").attr("stroke-width", 2.5);
+        const prPath = svg.append("path").attr("fill", "none").attr("stroke", "#22c55e").attr("stroke-width", 2.5);
+        
+        function updateChart() {
+            const V = +nodesSlider.value;
+            const density = +densitySlider.value / 100;
+            const E = Math.floor(density * V * (V-1) / 2);
+
+            nodesValue.textContent = V;
+            densityValue.textContent = Math.round(density * 100);
+            edgesCount.textContent = `~${E}`;
+
+            const data = d3.range(2, 101).map(v => {
+                const e = Math.floor(density * v * (v-1) / 2);
+                return {
+                    V: v,
+                    ff_ops: e * (v * 10), // Assume flow is proportional to V
+                    ek_ops: v * e * e,
+                    pr_ops: v * v * v // O(V^3) variant
+                };
+            });
+            
+            x.domain([0, 100]);
+            const yMax = d3.max(data, d => d.ek_ops);
+            y.domain([1, yMax > 1 ? yMax : 100]);
+
+            xAxis.call(d3.axisBottom(x));
+            yAxis.call(d3.axisLeft(y).ticks(5, "~s"));
+
+            const drawPath = (path, ops_key) => {
+                path.datum(data).attr("d", line.y(d => y(Math.max(1, d[ops_key]))));
+            };
+
+            drawPath(ffPath, 'ff_ops');
+            drawPath(ekPath, 'ek_ops');
+            drawPath(prPath, 'pr_ops');
+            
+            // Interaction
+            const focus = svg.append("g").style("display", "none");
+            focus.append("line").attr("class", "focus-line").attr("y1", 0).attr("y2", height).style("stroke", "#9ca3af").style("stroke-width", 1).style("stroke-dasharray", "3,3");
+            
+            svg.append("rect")
+               .attr("class", "overlay").attr("width", width).attr("height", height)
+               .style("fill", "none").style("pointer-events", "all")
+               .on("mouseover", () => { focus.style("display", null); tooltip.style("opacity", 1); })
+               .on("mouseout", () => { focus.style("display", "none"); tooltip.style("opacity", 0); })
+               .on("mousemove", mousemove);
+
+            function mousemove(event) {
+                const bisect = d3.bisector(d => d.V).left;
+                const x0 = x.invert(d3.pointer(event)[0]);
+                const i = bisect(data, x0, 1);
+                const d0 = data[i - 1];
+                const d1 = data[i];
+                if (!d0 || !d1) return;
+                const d = x0 - d0.V > d1.V - x0 ? d1 : d0;
+                
+                focus.attr("transform", `translate(${x(d.V)},0)`);
+
+                tooltip.style("left", (event.pageX + 15) + "px").style("top", (event.pageY - 28) + "px")
+                       .html(`<b>V = ${d.V}</b><br>
+                              <span style="color:#ef4444">FF: ~${d3.format(".2s")(d.ff_ops)}</span><br>
+                              <span style="color:#3b82f6">EK: ~${d3.format(".2s")(d.ek_ops)}</span><br>
+                              <span style="color:#22c55e">PR: ~${d3.format(".2s")(d.pr_ops)}</span>`);
+            }
+        }
+        
+        nodesSlider.addEventListener('input', updateChart);
+        densitySlider.addEventListener('input', updateChart);
+        
+        updateChart();
+        
+        // --- Dark Mode ---
+        const darkModeToggle = document.getElementById('dark-mode-toggle');
+        const themeIconLight = document.getElementById('theme-icon-light');
+        const themeIconDark = document.getElementById('theme-icon-dark');
+        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+            themeIconLight.classList.remove('hidden');
+            themeIconDark.classList.add('hidden');
+        } else {
+            themeIconLight.classList.add('hidden');
+            themeIconDark.classList.remove('hidden');
+        }
+        darkModeToggle.addEventListener('click', () => {
+            document.documentElement.classList.toggle('dark');
+            localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+            themeIconLight.classList.toggle('hidden');
+            themeIconDark.classList.toggle('hidden');
+        });
+    });
+    </script>
+</body>
+</html>

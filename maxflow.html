@@ -1,0 +1,1233 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Max-Flow + Residual Visualizer</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script> tailwind.config = { darkMode: 'class' } </script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .control-panel .active { background: #2563eb; color: white; }
+        .graph-container { border: 1px solid #e5e7eb; background: white; border-radius: 8px; overflow: hidden; }
+        .dark .graph-container { border-color: #374151; background: #111827; color: #e5e7eb; }
+        .link { stroke-opacity: 0.95; fill: none; stroke: #6b7280; stroke-width: 3px; }
+        .link.residual-backward { stroke-dasharray: 5,5; stroke: #9333ea !important; }
+        .arrow { fill: #6b7280; }
+        .edge-label { font-size: 12px; pointer-events: none; text-anchor: middle; font-weight: 600; paint-order: stroke; stroke: #ffffff; stroke-width: 3px;fill: #111827; }
+        .node { stroke-width: 3px; fill: white; cursor: pointer; }
+        .node-attrs { font-size: 11px; pointer-events: none; text-anchor: middle; font-weight: 700; paint-order: stroke; stroke: #ffffff; stroke-width: 3px; fill: #111827; dominant-baseline: hanging; }
+        .dark .node-attrs { fill: #e5e7eb; stroke: #000000; }
+    </style>
+</head>
+<body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
+
+<nav class="bg-white dark:bg-gray-800 shadow sticky top-0 z-40">
+  <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center space-x-4">
+      <span class="text-xl font-bold text-blue-600 dark:text-blue-400">Max-Flow Hub</span>
+      <div class="hidden md:flex space-x-3 text-sm text-gray-600 dark:text-gray-300">
+        <a href="index.html">Home</a>
+        <a href="maxflow.html" class="font-semibold">Visualizer</a>
+        <a href="residual.html">Residual</a>
+        <a href="theorems.html">Theorems</a>
+      </div>
+    </div>
+    <button id="dark-mode-toggle" class="p-2 rounded text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700">
+      <svg id="theme-icon-light" class="h-6 w-6 hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1M20.354 15.354A9 9 0 118.646 3.646 9.003 9.003 0 0020.354 15.354z"></path></svg>
+      <svg id="theme-icon-dark" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1M4 12H3m18 0h-1"></path></svg>
+    </button>
+  </div>
+</nav>
+
+<header class="bg-gray-100 dark:bg-gray-800 p-3">
+  <div class="max-w-7xl mx-auto flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+    <div class="flex items-center gap-2">
+      <div class="control-panel flex items-center gap-1 bg-white dark:bg-gray-700 p-2 rounded shadow-sm">
+        <button id="add-node-btn" class="px-3 py-1 rounded text-sm">Add Node</button>
+        <button id="add-edge-btn" class="px-3 py-1 rounded text-sm">Add Edge</button>
+        <button id="set-source-btn" class="px-3 py-1 rounded text-sm">Set Source</button>
+        <button id="set-sink-btn" class="px-3 py-1 rounded text-sm">Set Sink</button>
+      </div>
+
+      <div class="ml-2 bg-white dark:bg-gray-700 p-2 rounded shadow-sm">
+        <label class="text-xs mr-2">Predefined:</label>
+        <select id="graph-select" class="text-sm bg-transparent">
+          <option value="custom">Custom Graph</option>
+          <option value="simple">Simple S-T Flow</option>
+          <option value="clrs">CLRS Example</option>
+          <option value="bottleneck">Bottleneck</option>
+          <option value="multiple_paths">Multiple Paths</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <div class="bg-white dark:bg-gray-700 p-2 rounded shadow-sm flex items-center gap-3">
+        <label class="text-sm mr-1">Algo:</label>
+        <label class="text-sm"><input type="radio" name="algorithm" value="ff" class="mr-1">FF</label>
+        <label class="text-sm"><input type="radio" name="algorithm" value="ek" checked class="mr-1">EK</label>
+        <label class="text-sm"><input type="radio" name="algorithm" value="pr" class="mr-1">Push-Relabel</label>
+      </div>
+
+      <button id="run-btn" class="bg-blue-600 text-white px-4 py-1 rounded shadow text-sm">Visualize</button>
+      <button id="reset-btn" class="bg-red-500 text-white px-3 py-1 rounded text-sm">Reset Flow</button>
+      <button id="clear-btn" class="bg-gray-500 text-white px-3 py-1 rounded text-sm">Clear All</button>
+    </div>
+
+    <div class="bg-white dark:bg-gray-700 p-2 rounded shadow-sm flex items-center gap-2">
+      <button id="prev-step-btn" class="px-2" disabled>◀</button>
+      <div id="step-counter" class="text-sm">Step 0 / 0</div>
+      <button id="next-step-btn" class="px-2" disabled>▶</button>
+      <button id="play-pause-btn" class="ml-2 bg-green-500 text-white px-3 py-1 rounded" disabled>Play</button>
+      <div class="ml-3 text-sm">Speed</div>
+      <input id="speed-slider" type="range" min="50" max="2000" value="500" class="w-36">
+    </div>
+  </div>
+</header>
+
+<main class="max-w-7xl mx-auto p-3 grid grid-cols-1 md:grid-cols-2 gap-4 h-[calc(100vh-220px)]">
+  <section class="flex flex-col">
+    <div class="flex items-center justify-between mb-2">
+      <h3 class="text-lg font-semibold">Original Flow Network</h3>
+      <div class="text-sm">Total Flow: <span id="max-flow-text" class="font-bold text-blue-600">0</span></div>
+    </div>
+    <div id="original-graph" class="graph-container flex-1"></div>
+  </section>
+
+  <section class="flex flex-col">
+    <div class="flex items-center justify-between mb-2">
+      <h3 class="text-lg font-semibold">Residual Graph</h3>
+      <div class="text-sm text-gray-500">Forward = cap - flow, Backward (dashed) = flow</div>
+    </div>
+    <div id="residual-graph" class="graph-container flex-1"></div>
+  </section>
+</main>
+
+<footer class="max-w-7xl mx-auto p-3">
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+    <div class="md:col-span-2 bg-white dark:bg-gray-800 p-3 rounded graph-container">
+      <h4 class="font-semibold mb-2">Algorithm Log</h4>
+      <div id="status-log" class="text-sm text-gray-600 dark:text-gray-300 h-36 overflow-auto p-2 bg-gray-50 dark:bg-gray-900 rounded"></div>
+    </div>
+    <div class="bg-white dark:bg-gray-800 p-3 rounded graph-container">
+      <h4 class="font-semibold mb-2">Debug Info</h4>
+      <div id="debug-info" class="text-xs text-gray-600 dark:text-gray-300 font-mono">Ready</div>
+    </div>
+  </div>
+</footer>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+
+  /* ============================================================================
+     CORE STATE & UTILITY
+     ============================================================================ */
+  const state = {
+    nodes: [], links: [], nodeIdCounter: 0,
+    sourceNodeId: null, sinkNodeId: null,
+    currentMode: 'NONE',
+    edgeCreationStep: 0, tempEdgeSourceId: null,
+    isRunning: false, history: [], currentStep: -1,
+    isPlaying: false, playAbortFlag: false,
+    heights: {}, excesses: {},
+    currentAlgorithm: null  // NEW: Track which algorithm is running
+  };
+
+  const FSM = { NONE:'NONE', ADD_NODE:'ADD_NODE', ADD_EDGE:'ADD_EDGE', SET_SOURCE:'SET_SOURCE', SET_SINK:'SET_SINK' };
+
+  const dom = {
+    addNode: document.getElementById('add-node-btn'),
+    addEdge: document.getElementById('add-edge-btn'),
+    setSource: document.getElementById('set-source-btn'),
+    setSink: document.getElementById('set-sink-btn'),
+    graphSelect: document.getElementById('graph-select'),
+    runBtn: document.getElementById('run-btn'),
+    resetBtn: document.getElementById('reset-btn'),
+    clearBtn: document.getElementById('clear-btn'),
+    prevStepBtn: document.getElementById('prev-step-btn'),
+    nextStepBtn: document.getElementById('next-step-btn'),
+    playPauseBtn: document.getElementById('play-pause-btn'),
+    speedSlider: document.getElementById('speed-slider'),
+    stepCounter: document.getElementById('step-counter'),
+    maxFlowText: document.getElementById('max-flow-text'),
+    statusLog: document.getElementById('status-log'),
+    debugInfo: document.getElementById('debug-info'),
+    originalContainer: document.getElementById('original-graph'),
+    residualContainer: document.getElementById('residual-graph'),
+    darkToggle: document.getElementById('dark-mode-toggle'),
+    themeIconLight: document.getElementById('theme-icon-light'),
+    themeIconDark: document.getElementById('theme-icon-dark'),
+  };
+
+  function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+  function yieldFrame(){ return new Promise(r => requestAnimationFrame(r)); }
+
+  // FIX #2: Enforce flow bounds - CRITICAL for correct residual graph
+  function setEdgeFlow(edge, newFlow) {
+    edge.flow = Math.max(0, Math.min(edge.capacity, newFlow));
+  }
+
+  function log(msg, append=true) {
+    const t = new Date().toLocaleTimeString();
+    const el = `<div class="py-0.5">${t} — ${msg}</div>`;
+    if (append) dom.statusLog.innerHTML += el;
+    else dom.statusLog.innerHTML = el;
+    dom.statusLog.scrollTop = dom.statusLog.scrollHeight;
+  }
+
+  function debug(msg) {
+    dom.debugInfo.textContent = msg;
+  }
+
+  /* ============================================================================
+     PREDEFINED GRAPHS
+     ============================================================================ */
+  const PREDEFINED = {
+    simple: {
+      nodes: [{id:0, fx:100, fy:150},{id:1, fx:500, fy:150}],
+      links: [{source:0,target:1,capacity:10}],
+      source:0, sink:1, counter:2
+    },
+    clrs: {
+      nodes: [{id:0},{id:1},{id:2},{id:3},{id:4},{id:5}],
+      links: [
+        {source:0,target:1,capacity:16},{source:0,target:2,capacity:13},
+        {source:1,target:2,capacity:10},{source:1,target:3,capacity:12},
+        {source:2,target:1,capacity:4},{source:2,target:4,capacity:14},
+        {source:3,target:2,capacity:9},{source:3,target:5,capacity:20},
+        {source:4,target:3,capacity:7},{source:4,target:5,capacity:4}
+      ], source:0, sink:5, counter:6
+    },
+    bottleneck: {
+      nodes: [{id:0},{id:1},{id:2},{id:3}],
+      links: [{source:0,target:1,capacity:10},{source:1,target:2,capacity:1},{source:2,target:3,capacity:10}],
+      source:0, sink:3, counter:4
+    },
+    multiple_paths: {
+      nodes: [{id:0},{id:1},{id:2},{id:3},{id:4},{id:5}],
+      links: [
+        {source:0,target:1,capacity:10},{source:0,target:2,capacity:10},
+        {source:1,target:3,capacity:8},{source:1,target:4,capacity:4},
+        {source:2,target:3,capacity:4},{source:2,target:4,capacity:8},
+        {source:3,target:5,capacity:10},{source:4,target:5,capacity:10}
+      ], source:0, sink:5, counter:6
+    }
+  };
+
+  /* ============================================================================
+     D3 SVG SETUP
+     ============================================================================ */
+  let originalSvg, residualSvg, sim;
+  let originalLinksG, originalNodesG, originalLabelsG;
+  let residualLinksG, residualNodesG, residualLabelsG;
+
+  function setupSvgs() {
+    const wO = dom.originalContainer.clientWidth || 600;
+    const hO = dom.originalContainer.clientHeight || 400;
+    const wR = dom.residualContainer.clientWidth || 600;
+    const hR = dom.residualContainer.clientHeight || 400;
+
+    originalSvg = d3.select(dom.originalContainer).append('svg')
+      .attr('width','100%').attr('height','100%').attr('viewBox',`0 0 ${wO} ${hO}`)
+      .on('click', (e)=> { if (state.currentMode === FSM.ADD_NODE && !state.isRunning) addNode(...d3.pointer(e)); });
+
+    residualSvg = d3.select(dom.residualContainer).append('svg')
+      .attr('width','100%').attr('height','100%').attr('viewBox',`0 0 ${wR} ${hR}`);
+
+    const defsO = originalSvg.append('defs');
+    defsO.append('marker').attr('id','arrow-original').attr('viewBox','0 -5 10 10').attr('refX',25).attr('refY',0)
+      .attr('markerWidth',6).attr('markerHeight',6).attr('orient','auto')
+      .append('path').attr('d','M0,-5L10,0L0,5').attr('class','arrow');
+
+    const defsR = residualSvg.append('defs');
+    defsR.append('marker').attr('id','arrow-residual').attr('viewBox','0 -5 10 10').attr('refX',25).attr('refY',0)
+      .attr('markerWidth',6).attr('markerHeight',6).attr('orient','auto')
+      .append('path').attr('d','M0,-5L10,0L0,5').attr('class','arrow');
+
+    originalLinksG = originalSvg.append('g').attr('class','links');
+    originalNodesG = originalSvg.append('g').attr('class','nodes');
+    originalLabelsG = originalSvg.append('g').attr('class','labels');
+
+    residualLinksG = residualSvg.append('g').attr('class','links');
+    residualNodesG = residualSvg.append('g').attr('class','nodes');
+    residualLabelsG = residualSvg.append('g').attr('class','labels');
+
+    sim = d3.forceSimulation(state.nodes)
+      .force('link', d3.forceLink().id(d=>d.id).distance(150))
+      .force('charge', d3.forceManyBody().strength(-500))
+      .force('center', d3.forceCenter(Math.max(wO,wR)/2, Math.max(hO,hR)/2))
+      .on('tick', ticked);
+  }
+
+  /* ============================================================================
+     GRAPH CRUD
+     ============================================================================ */
+  function addNode(x=100,y=100) {
+    state.nodes.push({ id: state.nodeIdCounter++, x, y, fx:x, fy:y });
+    updateBoth();
+    log('Added node ' + (state.nodeIdCounter-1));
+  }
+
+  function addEdge(uId, vId, cap) {
+    const srcId = typeof uId === 'object' ? uId.id : uId;
+    const tgtId = typeof vId === 'object' ? vId.id : vId;
+    
+    if (state.links.some(l => {
+      const lsrc = typeof l.source === 'object' ? l.source.id : l.source;
+      const ltgt = typeof l.target === 'object' ? l.target.id : l.target;
+      return lsrc === srcId && ltgt === tgtId;
+    })) {
+      log('Edge exists, skipping.');
+      return;
+    }
+    state.links.push({ source: srcId, target: tgtId, capacity: +cap, flow: 0 });
+    updateBoth();
+    log(`Added edge ${srcId} → ${tgtId} cap ${cap}`);
+  }
+
+  function setSource(nodeId) {
+    state.sourceNodeId = nodeId;
+    updateBoth();
+    log('Source set to ' + nodeId);
+  }
+
+  function setSink(nodeId) {
+    state.sinkNodeId = nodeId;
+    updateBoth();
+    log('Sink set to ' + nodeId);
+  }
+
+  function loadPredefined(name) {
+    if (!PREDEFINED[name]) return;
+    const tpl = PREDEFINED[name];
+    state.nodes = JSON.parse(JSON.stringify(tpl.nodes));
+    state.nodes.forEach((n,i)=>{ if (!('x' in n)) { n.x = 100 + i*80; n.y = 150 + (i%2)*40; }});
+    state.links = JSON.parse(JSON.stringify(tpl.links.map(l => ({...l, flow:0}))));
+    state.sourceNodeId = tpl.source;
+    state.sinkNodeId = tpl.sink;
+    state.nodeIdCounter = tpl.counter;
+    resetForAlgorithm(true);
+    updateBoth();
+    log(`Loaded ${name}`);
+  }
+
+  /* ============================================================================
+     D3 UPDATE FUNCTIONS (FIX #3: Correct residual graph building)
+     ============================================================================ */
+  function updateBoth() { updateOriginal(); updateResidual(); }
+
+  function getEdgeId(link) {
+    const sid = typeof link.source === 'object' ? link.source.id : link.source;
+    const tid = typeof link.target === 'object' ? link.target.id : link.target;
+    return `${sid}-${tid}`;
+  }
+
+  function buildOriginalLinks() {
+    return state.links.map(l => {
+      const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
+      const targetId = typeof l.target === 'object' ? l.target.id : l.target;
+      return {
+        source: state.nodes.find(n => n.id === sourceId),
+        target: state.nodes.find(n => n.id === targetId),
+        capacity: l.capacity,
+        flow: l.flow || 0,
+        originalLink: l
+      };
+    }).filter(link => link.source && link.target);
+  }
+
+  // FIX #3: Correct residual graph building
+  function buildResidualLinks() {
+    const R = [];
+    state.links.forEach(l => {
+      const sourceId = typeof l.source === 'object' ? l.source.id : l.source;
+      const targetId = typeof l.target === 'object' ? l.target.id : l.target;
+      const u = state.nodes.find(n => n.id === sourceId);
+      const v = state.nodes.find(n => n.id === targetId);
+      
+      if (!u || !v) return;
+      
+      const currentFlow = l.flow || 0;
+      
+      // Forward edge: capacity - flow
+      const forwardCap = l.capacity - currentFlow;
+      if (forwardCap > 0) {
+        R.push({ source: u, target: v, capacity: forwardCap, isBackward: false, orig: l });
+      }
+      
+      // Backward edge: flow (only if flow > 0)
+      if (currentFlow > 0) {
+        R.push({
+          source: v,
+          target: u,
+          capacity: currentFlow,
+          isBackward: true,
+          orig: l
+        });
+      }
+    });
+    return R;
+  }
+
+  // NEW: Helper function to determine if node attrs should be shown
+  function shouldShowNodeAttrs() {
+    return state.currentAlgorithm === 'pr';
+  }
+
+  function updateOriginal() {
+    const links = buildOriginalLinks();
+
+    const sel = originalLinksG.selectAll('path.link').data(links, d => getEdgeId(d));
+    sel.exit().remove();
+    const enter = sel.enter().append('path').attr('class','link').attr('marker-end','url(#arrow-original)');
+    enter.merge(sel).style('stroke','#6b7280').style('stroke-width', 3);
+
+    const lab = originalLabelsG.selectAll('text.edge-label').data(links, d=>getEdgeId(d));
+    lab.exit().remove();
+    lab.enter().append('text').attr('class','edge-label').merge(lab).text(d => `${d.flow || 0}/${d.capacity}`);
+
+    const nsel = originalNodesG.selectAll('g.node').data(state.nodes, d=>d.id);
+    nsel.exit().remove();
+    const nenter = nsel.enter().append('g').attr('class','node').attr('id',d=>'node-original-'+d.id)
+      .call(d3.drag().on('start', (e,d)=>{ if (!e.active) sim.alphaTarget(0.3).restart(); d.fx = e.x; d.fy = e.y; })
+                           .on('drag', (e,d)=>{ d.fx = e.x; d.fy = e.y; })
+                           .on('end', (e,d)=>{ if(!e.active) sim.alphaTarget(0); }));
+    nenter.append('circle').attr('r',20).style('fill','white').style('stroke','#374151');
+    nenter.append('text').attr('dy','.35em').attr('text-anchor','middle').style('pointer-events','none').style('font-weight','700');
+    // new: node attrs (height & excess)
+    nenter.append('text').attr('class','node-attrs').attr('dy','2.1em').attr('text-anchor','middle').style('pointer-events','none');
+
+    const merged = nenter.merge(nsel);
+    merged.select('circle').style('stroke', d => nodeColor(d));
+    merged.select('text').filter(function(){ return !d3.select(this).classed('node-attrs'); }).text(d => (state.sourceNodeId === d.id ? 'S' : (state.sinkNodeId === d.id ? 'T' : d.id)));
+    
+    // MODIFIED: Show/hide node attrs based on algorithm
+    merged.select('text.node-attrs')
+      .text(d => shouldShowNodeAttrs() ? `h:${state.heights[d.id] || 0} e:${state.excesses[d.id] || 0}` : '')
+      .style('display', shouldShowNodeAttrs() ? null : 'none');
+
+    sim.nodes(state.nodes);
+    sim.force('link').links(links);
+    if (!state.isRunning) sim.alpha(0.3).restart();
+  }
+
+  function updateResidual() {
+    const links = buildResidualLinks();
+
+    const sel = residualLinksG.selectAll('path.link').data(links, d => `${d.source.id}-${d.target.id}-${d.isBackward ? 'b':'f'}`);
+    sel.exit().remove();
+    const enter = sel.enter().append('path').attr('class','link').attr('marker-end','url(#arrow-residual)');
+    enter.merge(sel)
+      .attr('class', d => d.isBackward ? 'link residual-backward' : 'link')
+      .style('stroke','#6b7280').style('stroke-width', 3);
+
+    const lab = residualLabelsG.selectAll('text.edge-label').data(links, d => `${d.source.id}-${d.target.id}-${d.isBackward ? 'b':'f'}`);
+    lab.exit().remove();
+    lab.enter().append('text').attr('class','edge-label').merge(lab).text(d => `${d.capacity}`);
+
+    const nsel = residualNodesG.selectAll('g.node').data(state.nodes, d=>d.id);
+    nsel.exit().remove();
+    const nenter = nsel.enter().append('g').attr('class','node').attr('id', d=>'node-residual-'+d.id);
+    nenter.append('circle').attr('r',20).style('fill','white').style('stroke','#374151');
+    nenter.append('text').attr('dy','.35em').attr('text-anchor','middle').style('pointer-events','none').style('font-weight','700');
+    nenter.append('text').attr('class','node-attrs').attr('dy','2.1em').attr('text-anchor','middle').style('pointer-events','none');
+    const merged = nenter.merge(nsel);
+    merged.select('circle').style('stroke', d => nodeColor(d));
+    merged.select('text').filter(function(){ return !d3.select(this).classed('node-attrs'); }).text(d => (state.sourceNodeId === d.id ? 'S' : (state.sinkNodeId === d.id ? 'T' : d.id)));
+    
+    // MODIFIED: Show/hide node attrs based on algorithm
+    merged.select('text.node-attrs')
+      .text(d => shouldShowNodeAttrs() ? `h:${state.heights[d.id] || 0} e:${state.excesses[d.id] || 0}` : '')
+      .style('display', shouldShowNodeAttrs() ? null : 'none');
+  }
+
+  function ticked() {
+    originalNodesG.selectAll('g.node').attr('transform', d => `translate(${d.x},${d.y})`);
+    originalLinksG.selectAll('path.link').attr('d', d => `M${d.source.x},${d.source.y}L${d.target.x},${d.target.y}`);
+    originalLabelsG.selectAll('text.edge-label').attr('x', d => (d.source.x + d.target.x)/2).attr('y', d => (d.source.y + d.target.y)/2 - 8);
+
+    residualNodesG.selectAll('g.node').attr('transform', d => `translate(${d.x},${d.y})`);
+    
+    residualLinksG.selectAll('path.link').attr('d', d => {
+      if (d.isBackward) {
+        const dx = d.target.x - d.source.x;
+        const dy = d.target.y - d.source.y;
+        const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+        const mx = (d.source.x + d.target.x) / 2;
+        const my = (d.source.y + d.target.y) / 2;
+        const offset = Math.min(50, 25 + dist * 0.1);
+        const cx = mx - dy/dist * offset;
+        const cy = my + dx/dist * offset;
+        return `M${d.source.x},${d.source.y} Q${cx},${cy} ${d.target.x},${d.target.y}`;
+      }
+      return `M${d.source.x},${d.source.y}L${d.target.x},${d.target.y}`;
+    });
+    
+    residualLabelsG.selectAll('text.edge-label')
+      .attr('x', d => {
+        if (d.isBackward) {
+          const dx = d.target.x - d.source.x;
+          const dy = d.target.y - d.source.y;
+          const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+          const mx = (d.source.x + d.target.x) / 2;
+          const offset = Math.min(50, 25 + dist * 0.1);
+          return mx - dy/dist * offset;
+        }
+        return (d.source.x + d.target.x)/2;
+      })
+      .attr('y', d => {
+        if (d.isBackward) {
+          const dx = d.target.x - d.source.x;
+          const dy = d.target.y - d.source.y;
+          const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+          const my = (d.source.y + d.target.y) / 2;
+          const offset = Math.min(50, 25 + dist * 0.1);
+          return my + dx/dist * offset;
+        }
+        return (d.source.y + d.target.y)/2 - 8;
+      });
+  }
+
+  function nodeColor(d) {
+    if (state.sourceNodeId !== null && d.id === state.sourceNodeId) return '#16a34a';
+    if (state.sinkNodeId !== null && d.id === state.sinkNodeId) return '#dc2626';
+    return '#374151';
+  }
+
+  /* ============================================================================
+     HISTORY SYSTEM
+     ============================================================================ */
+  function resetForAlgorithm(clearHistory = true) {
+    // FIX #4: Only reset algorithm state, keep graph structure
+    if (clearHistory) { 
+      state.history = []; 
+      state.currentStep = -1; 
+      state.currentAlgorithm = null;  // NEW: Clear algorithm tracking only when clearing history
+    }
+    state.links.forEach(l => setEdgeFlow(l, 0));
+    state.heights = {}; state.excesses = {};
+    dom.maxFlowText.textContent = '0';
+    dom.statusLog.innerHTML = '';
+    updateBoth();
+    updateStepUI();
+  }
+
+  function clearGraph() {
+    // Full clear for "Clear All" button
+    state.nodes = []; state.links = []; state.nodeIdCounter = 0;
+    state.sourceNodeId = null; state.sinkNodeId = null;
+    resetForAlgorithm(true);
+    dom.maxFlowText.textContent = '0';
+    dom.statusLog.innerHTML = '<div>Graph cleared.</div>';
+    updateBoth();
+  }
+
+  function logStep(type, payload) { 
+    state.history.push({ 
+      type, 
+      payload, 
+      snapshot: captureState() 
+    }); 
+  }
+
+  function captureState() {
+    return {
+      nodes: state.nodes.map(n => ({...n})),
+      links: state.links.map(l => ({ source: typeof l.source === 'object' ? l.source.id : l.source, target: typeof l.target === 'object' ? l.target.id : l.target, capacity: l.capacity, flow: l.flow })),
+      heights: {...state.heights},
+      excesses: {...state.excesses},
+      sourceNodeId: state.sourceNodeId,
+      sinkNodeId: state.sinkNodeId,
+      maxFlow: parseFloat(dom.maxFlowText.textContent || 0)
+    };
+  }
+
+  function restoreState(snapshot) {
+    state.nodes = snapshot.nodes.map(n => ({...n}));
+    state.links = snapshot.links.map(l => ({...l}));
+    state.heights = {...snapshot.heights};
+    state.excesses = {...snapshot.excesses};
+    state.sourceNodeId = snapshot.sourceNodeId;
+    state.sinkNodeId = snapshot.sinkNodeId;
+    dom.maxFlowText.textContent = snapshot.maxFlow;
+    updateBoth();
+  }
+
+  /* ============================================================================
+     EDMONDS-KARP (FIX #1: Correct augmentation with edge references)
+     ============================================================================ */
+  async function recordEdmondsKarp() {
+    let maxFlow = 0;
+    logStep('STATUS', { text: 'Edmonds-Karp: BFS shortest augmenting paths' });
+
+    let iterationCount = 0;
+    while (true) {
+      logStep('STATUS', { text: 'EK: BFS searching...' });
+      const pinfo = await ekBfsAsync();
+      if (!pinfo) { logStep('STATUS', { text: 'No augmenting path (EK done)' }); break; }
+      
+      const { path, pathFlow, edgeSequence } = pinfo;
+      
+      // FIX #1: Apply augmentation using stored edge references
+      edgeSequence.forEach(({edge, isBackward}) => {
+        if (isBackward) {
+          setEdgeFlow(edge, edge.flow - pathFlow);
+        } else {
+          setEdgeFlow(edge, edge.flow + pathFlow);
+        }
+      });
+      
+      maxFlowInc(pathFlow);
+      logStep('STATUS', { text: `EK: +${pathFlow} along ${path.join(' → ')}` });
+      logStep('AUGMENT', { path, pathFlow });
+      logStep('HIGHLIGHT_PATH', { path, color: null });
+      
+      iterationCount++;
+      if (iterationCount % 3 === 0) await yieldFrame();
+    }
+
+    logStep('STATUS', { text: `Edmonds-Karp complete. Max flow = ${dom.maxFlowText.textContent}` });
+    logStep('FINISH', {});
+  }
+
+  // FIX #1: Store edge references in parent map
+  async function ekBfsAsync() {
+    const parent = {};
+    const q = [state.sourceNodeId];
+    const visited = new Set([state.sourceNodeId]);
+    parent[state.sourceNodeId] = { prev: -1, edge: null, isBackward: false };
+    
+    logStep('STATUS', { text: `BFS: start from ${state.sourceNodeId}` });
+    logStep('HIGHLIGHT_NODE', { nodeId: state.sourceNodeId, color: '#f59e0b' });
+
+    let loopCount = 0;
+    while (q.length) {
+      const u = q.shift();
+      logStep('STATUS', { text: `BFS: explore ${u}` });
+      logStep('HIGHLIGHT_NODE', { nodeId: u, color: '#f59e0b' });
+
+      // Forward edges
+      for (const e of state.links) {
+        const srcId = typeof e.source === 'object' ? e.source.id : e.source;
+        const tgtId = typeof e.target === 'object' ? e.target.id : e.target;
+        
+        if (srcId === u && (e.capacity - e.flow) > 0 && !visited.has(tgtId)) {
+          visited.add(tgtId);
+          parent[tgtId] = { prev: u, edge: e, isBackward: false };
+          q.push(tgtId);
+          logStep('STATUS', { text: `BFS: forward ${u}→${tgtId} (res ${e.capacity - e.flow})` });
+          logStep('HIGHLIGHT_NODE', { nodeId: tgtId, color: '#f97316' });
+        }
+      }
+      
+      // Backward edges
+      if (u !== state.sinkNodeId) {
+        for (const e of state.links) {
+          const srcId = typeof e.source === 'object' ? e.source.id : e.source;
+          const tgtId = typeof e.target === 'object' ? e.target.id : e.target;
+          
+          if (tgtId === u && e.flow > 0 && !visited.has(srcId)) {
+            visited.add(srcId);
+            parent[srcId] = { prev: u, edge: e, isBackward: true };
+            q.push(srcId);
+            logStep('STATUS', { text: `BFS: backward ${u}←${srcId} (flow ${e.flow})` });
+            logStep('HIGHLIGHT_NODE', { nodeId: srcId, color: '#f97316' });
+          }
+        }
+      }
+
+      logStep('HIGHLIGHT_NODE', { nodeId: u, color: null });
+
+      if (visited.has(state.sinkNodeId)) break;
+      
+      loopCount++;
+      if (loopCount % 25 === 0) await yieldFrame();
+    }
+
+    if (!parent[state.sinkNodeId]) {
+      visited.forEach(nid => logStep('HIGHLIGHT_NODE', { nodeId: nid, color: null }));
+      return null;
+    }
+    
+    // Reconstruct path and compute bottleneck from stored edges
+    let path = [];
+    let edgeSequence = [];
+    let pathFlow = Infinity;
+    let cur = state.sinkNodeId;
+    
+    while (cur !== -1) {
+      path.unshift(cur);
+      const parentInfo = parent[cur];
+      if (parentInfo.prev !== -1) {
+        edgeSequence.unshift({ edge: parentInfo.edge, isBackward: parentInfo.isBackward });
+        
+        // FIX #1: Compute bottleneck from stored edge
+        if (parentInfo.isBackward) {
+          pathFlow = Math.min(pathFlow, parentInfo.edge.flow);
+        } else {
+          pathFlow = Math.min(pathFlow, parentInfo.edge.capacity - parentInfo.edge.flow);
+        }
+      }
+      cur = parentInfo.prev;
+    }
+
+    logStep('STATUS', { text: `BFS: path ${path.join(' → ')} bottleneck ${pathFlow}` });
+    logStep('HIGHLIGHT_PATH', { path, color: '#3b82f6' });
+
+    return { path, pathFlow, edgeSequence };
+  }
+
+  /* ============================================================================
+     FORD-FULKERSON (FIX #1: Same edge reference fix)
+     ============================================================================ */
+  async function recordFordFulkerson() {
+    logStep('STATUS', { text: 'Ford-Fulkerson (DFS) start' });
+
+    let iterationCount = 0;
+    while (true) {
+      logStep('STATUS', { text: 'FF: DFS searching...' });
+      const visited = new Set();
+      const found = await dfsAsync(state.sourceNodeId, Infinity, [], visited);
+      
+      visited.forEach(nid => logStep('HIGHLIGHT_NODE', { nodeId: nid, color: null }));
+      
+      if (!found || found.pathFlow === 0) { 
+        logStep('STATUS', { text: 'No augmenting path (FF done)' }); 
+        break; 
+      }
+      
+      const { path, pathFlow, edgeSequence } = found;
+      
+      // NEW: Highlight the found path in blue
+      logStep('STATUS', { text: `FF: path ${path.join(' → ')} bottleneck ${pathFlow}` });
+      logStep('HIGHLIGHT_PATH', { path, color: '#3b82f6' });
+      
+      // FIX #1: Apply using edge references
+      edgeSequence.forEach(({edge, isBackward}) => {
+        if (isBackward) {
+          setEdgeFlow(edge, edge.flow - pathFlow);
+        } else {
+          setEdgeFlow(edge, edge.flow + pathFlow);
+        }
+      });
+      
+      maxFlowInc(pathFlow);
+      logStep('STATUS', { text: `FF: +${pathFlow} along ${path.join(' → ')}` });
+      logStep('AUGMENT', { path, pathFlow });
+      logStep('HIGHLIGHT_PATH', { path, color: null });
+      
+      iterationCount++;
+      if (iterationCount % 3 === 0) await yieldFrame();
+    }
+
+    logStep('STATUS', { text: `Ford-Fulkerson complete. Max flow = ${dom.maxFlowText.textContent}` });
+    logStep('FINISH', {});
+  }
+
+  async function dfsAsync(u, flow, edgeSeq, visited) {
+    visited.add(u);
+    logStep('STATUS', { text: `DFS: visit ${u}` });
+    logStep('HIGHLIGHT_NODE', { nodeId: u, color: '#f59e0b' });
+
+    if (u === state.sinkNodeId) {
+      logStep('STATUS', { text: `DFS: reached sink` });
+      logStep('HIGHLIGHT_NODE', { nodeId: u, color: null });
+      return { path: [u], pathFlow: flow, edgeSequence: edgeSeq };
+    }
+
+    for (const e of state.links) {
+      const srcId = typeof e.source === 'object' ? e.source.id : e.source;
+      const tgtId = typeof e.target === 'object' ? e.target.id : e.target;
+      
+      // Forward
+      if (srcId === u && (e.capacity - e.flow > 0) && !visited.has(tgtId)) {
+        logStep('STATUS', { text: `DFS: try forward ${u}→${tgtId}` });
+        const newFlow = Math.min(flow, e.capacity - e.flow);
+        const newSeq = [...edgeSeq, { edge: e, isBackward: false }];
+        const res = await dfsAsync(tgtId, newFlow, newSeq, visited);
+        if (res) { 
+          res.path.unshift(u); 
+          logStep('HIGHLIGHT_NODE', { nodeId: u, color: null }); 
+          return res; 
+        }
+      }
+      
+      // Backward
+      if (tgtId === u && u !== state.sinkNodeId && e.flow > 0 && !visited.has(srcId)) {
+        logStep('STATUS', { text: `DFS: try backward ${u}←${srcId}` });
+        const newFlow = Math.min(flow, e.flow);
+        const newSeq = [...edgeSeq, { edge: e, isBackward: true }];
+        const res = await dfsAsync(srcId, newFlow, newSeq, visited);
+        if (res) { 
+          res.path.unshift(u); 
+          logStep('HIGHLIGHT_NODE', { nodeId: u, color: null }); 
+          return res; 
+        }
+      }
+    }
+
+    logStep('HIGHLIGHT_NODE', { nodeId: u, color: null });
+    return null;
+  }
+
+  /* ============================================================================
+     PUSH-RELABEL (FIX #5: Correct preflow algorithm + live visual updates)
+     ============================================================================ */
+  async function recordPushRelabel() {
+    logStep('STATUS', { text: 'Push-Relabel: initialize' });
+    const n = state.nodes.length;
+    const heights = {}, excess = {};
+    state.nodes.forEach(nd => { heights[nd.id] = 0; excess[nd.id] = 0; });
+    heights[state.sourceNodeId] = n;
+    // Update global visual state so the UI can reflect heights/excesses live
+    state.heights = {...heights};
+    state.excesses = {...excess};
+    updateBoth();
+    logStep('SET_ALL_ATTRIBUTES', { heights: {...heights}, excesses: {...excess}, oldHeights: {}, oldExcesses: {} });
+
+    // Saturate source outgoing edges
+    for (const e of state.links) {
+      const srcId = typeof e.source === 'object' ? e.source.id : e.source;
+      if (srcId === state.sourceNodeId) {
+        const amt = e.capacity;
+        const tgtId = typeof e.target === 'object' ? e.target.id : e.target;
+        const oldEx = {...excess};
+        setEdgeFlow(e, amt);
+        excess[srcId] = (excess[srcId] || 0) - amt;
+        excess[tgtId] = (excess[tgtId] || 0) + amt;
+        // live update
+        state.links = state.links; // no-op but keep reference
+        state.excesses = {...excess};
+        updateBoth();
+        logStep('PUSH', { from: srcId, to: tgtId, amount: amt, oldFlow: 0, oldExcesses: oldEx });
+        (function(){ const __l = e; const __src = (typeof __l.source==='object'?__l.source.id:__l.source); const __tgt = (typeof __l.target==='object'?__l.target.id:__l.target); logStep('HIGHLIGHT_LINK', { source: __src, target: __tgt, color: '#f59e0b'  }); })();
+        (function(){ const __l = e; const __src = (typeof __l.source==='object'?__l.source.id:__l.source); const __tgt = (typeof __l.target==='object'?__l.target.id:__l.target); logStep('HIGHLIGHT_LINK', { source: __src, target: __tgt, color: null  }); })();
+      }
+    }
+
+    let loopCount = 0;
+    let active;
+    // choose highest-height active node (fix for custom graphs)
+    while ((active = (() => {
+      const activeCandidates = state.nodes.map(n => n.id).filter(id => id !== state.sourceNodeId && id !== state.sinkNodeId && (excess[id] || 0) > 0);
+      if (activeCandidates.length === 0) return undefined;
+      activeCandidates.sort((a,b) => (heights[b] || 0) - (heights[a] || 0));
+      return activeCandidates[0];
+    })()) !== undefined) {
+      logStep('STATUS', { text: `PR: active node ${active} (excess ${excess[active]})` });
+      logStep('HIGHLIGHT_NODE', { nodeId: active, color: '#3b82f6' });
+
+      let pushedAny = false;
+      
+      for (const e of state.links) {
+        if ((excess[active] || 0) === 0) break;
+        
+        const srcId = typeof e.source === 'object' ? e.source.id : e.source;
+        const tgtId = typeof e.target === 'object' ? e.target.id : e.target;
+        
+        // Forward push
+        if (srcId === active && heights[active] === (heights[tgtId] || 0) + 1) {
+          const residual = e.capacity - e.flow;
+          if (residual > 0) {
+            const amt = Math.min(excess[active], residual);
+            const oldEx = {...excess};
+            logStep('PUSH', { from: active, to: tgtId, amount: amt, oldFlow: e.flow, oldExcesses: oldEx });
+            setEdgeFlow(e, e.flow + amt);
+            excess[active] -= amt;
+            excess[tgtId] = (excess[tgtId] || 0) + amt;
+            pushedAny = true;
+            // live update
+            state.links = state.links;
+            state.excesses = {...excess};
+            updateBoth();
+            await yieldFrame();
+          }
+        }
+        
+        // Backward push
+        if (tgtId === active && heights[active] === (heights[srcId] || 0) + 1) {
+          const residual = e.flow;
+          if (residual > 0) {
+            const amt = Math.min(excess[active], residual);
+            const oldEx = {...excess};
+            logStep('PUSH', { from: active, to: srcId, amount: amt, oldFlow: e.flow, oldExcesses: oldEx, isReverse:true });
+            setEdgeFlow(e, e.flow - amt);
+            excess[active] -= amt;
+            excess[srcId] = (excess[srcId] || 0) + amt;
+            pushedAny = true;
+            // live update
+            state.links = state.links;
+            state.excesses = {...excess};
+            updateBoth();
+            await yieldFrame();
+          }
+        }
+      }
+
+      if (!pushedAny && (excess[active] || 0) > 0) {
+        // Relabel
+        let minH = Infinity;
+        for (const e of state.links) {
+          const srcId = typeof e.source === 'object' ? e.source.id : e.source;
+          const tgtId = typeof e.target === 'object' ? e.target.id : e.target;
+          
+          if (srcId === active && (e.capacity - e.flow) > 0) minH = Math.min(minH, heights[tgtId] || 0);
+          if (tgtId === active && e.flow > 0) minH = Math.min(minH, heights[srcId] || 0);
+        }
+        if (minH < Infinity) {
+          const oldH = heights[active];
+          heights[active] = minH + 1;
+          // live update
+          state.heights = {...heights};
+          updateBoth();
+          logStep('RELABEL', { nodeId: active, newHeight: heights[active], oldHeight: oldH });
+          await yieldFrame();
+        }
+      }
+      logStep('HIGHLIGHT_NODE', { nodeId: active, color: null });
+      
+      loopCount++;
+      if (loopCount % 20 === 0) await yieldFrame();
+    }
+    
+    const flowIntoSink = state.links.reduce((acc,e) => {
+      const tgtId = typeof e.target === 'object' ? e.target.id : e.target;
+      return tgtId === state.sinkNodeId ? acc + (e.flow || 0) : acc;
+    }, 0);
+    maxFlowSet(flowIntoSink);
+    logStep('STATUS', { text: `Push-Relabel complete. Max flow = ${flowIntoSink}` });
+    logStep('MAX_FLOW', { value: flowIntoSink, oldValue: 0 });
+    logStep('FINISH', {});
+    // final snapshot update
+    state.heights = {...heights};
+    state.excesses = {...excess};
+    updateBoth();
+  }
+
+  function maxFlowInc(delta) {
+    const cur = parseFloat(dom.maxFlowText.textContent || 0);
+    dom.maxFlowText.textContent = (cur + delta).toString();
+    logStep('MAX_FLOW', { value: cur + delta, oldValue: cur });
+  }
+  
+  function maxFlowSet(val) {
+    const old = parseFloat(dom.maxFlowText.textContent || 0);
+    dom.maxFlowText.textContent = val.toString();
+    logStep('MAX_FLOW', { value: val, oldValue: old });
+  }
+
+  /* ============================================================================
+     STEP PLAYBACK
+     ============================================================================ */
+  function applyStep(step, forward=true) {
+    const type = step.type, p = step.payload;
+    const isForward = forward;
+    
+    switch (type) {
+      case 'STATUS': 
+        if (isForward) log(p.text); 
+        break;
+        
+      case 'MAX_FLOW': 
+        dom.maxFlowText.textContent = isForward ? p.value : p.oldValue; 
+        break;
+        
+      case 'FINISH': 
+        state.isRunning = false; 
+        break;
+
+      case 'HIGHLIGHT_NODE': {
+        const nid = p.nodeId, color = isForward ? p.color : null;
+        d3.select('#node-original-'+nid).select('circle').transition().duration(120).style('stroke', color || nodeColor(state.nodes.find(n=>n.id===nid)));
+        d3.select('#node-residual-'+nid).select('circle').transition().duration(120).style('stroke', color || nodeColor(state.nodes.find(n=>n.id===nid)));
+        break;
+      }
+
+      case 'HIGHLIGHT_PATH': {
+        const path = p.path, color = isForward ? p.color : null;
+        path.forEach((nid,i) => {
+          d3.select('#node-original-'+nid).select('circle').transition().duration(120).style('stroke', color || nodeColor(state.nodes.find(n=>n.id===nid)));
+          d3.select('#node-residual-'+nid).select('circle').transition().duration(120).style('stroke', color || nodeColor(state.nodes.find(n=>n.id===nid)));
+          if (i > 0) {
+            const u = path[i-1], v = nid;
+            originalLinksG.selectAll('path.link').filter(d => d.source.id===u && d.target.id===v)
+              .transition().duration(120).style('stroke', color || '#6b7280');
+            residualLinksG.selectAll('path.link').filter(d => d.source.id===u && d.target.id===v)
+              .transition().duration(120).style('stroke', color || '#6b7280');
+          }
+        });
+        break;
+      }
+
+      case 'HIGHLIGHT_LINK': {
+  const srcId = p.source;
+  const tgtId = p.target;
+  if (srcId == null || tgtId == null) break;
+  // highlight in both original and residual link groups if present
+  if (typeof originalLinksG !== 'undefined') {
+    originalLinksG.selectAll('path.link').filter(d => d.source.id===srcId && d.target.id===tgtId)
+      .transition().duration(120).style('stroke', p.color || '#6b7280');
+  }
+  if (typeof residualLinksG !== 'undefined') {
+    residualLinksG.selectAll('path.link').filter(d => d.source.id===srcId && d.target.id===tgtId)
+      .transition().duration(120).style('stroke', p.color || '#6b7280');
+  }
+  break;
+}
+
+      case 'AUGMENT': {
+        if (step.snapshot) { restoreState(step.snapshot); } else if (isForward) {
+          updateBoth();
+        }
+        break;
+      }
+
+      case 'SET_ALL_ATTRIBUTES':
+        if (step.snapshot) { restoreState(step.snapshot); } else {
+          state.heights = isForward ? p.heights : p.oldHeights;
+          state.excesses = isForward ? p.excesses : p.oldExcesses;
+          updateBoth();
+        }
+        break;
+
+      case 'RELABEL':
+        if (step.snapshot) { restoreState(step.snapshot); } else {
+          state.heights[p.nodeId] = isForward ? p.newHeight : p.oldHeight;
+          updateBoth();
+        }
+        break;
+
+      case 'PUSH': {
+        if (step.snapshot) { restoreState(step.snapshot); } else {
+          state.excesses = isForward ? (() => { const ne = {...p.oldExcesses}; ne[p.from] -= p.amount; ne[p.to] += p.amount; return ne; })() : p.oldExcesses;
+          updateBoth();
+        }
+        break;
+      }
+    }
+  }
+
+  /* ============================================================================
+     PLAYBACK CONTROLS
+     ============================================================================ */
+  function stepForward() {
+    if (state.currentStep >= state.history.length - 1) return;
+    state.currentStep++;
+    applyStep(state.history[state.currentStep], true);
+    updateStepUI();
+  }
+  
+  function stepBackward() {
+    if (state.currentStep < 0) return;
+    applyStep(state.history[state.currentStep], false);
+    state.currentStep--;
+    updateStepUI();
+  }
+  
+  function step(dir) {
+    stopPlay();
+    if (dir === 1) stepForward(); 
+    else stepBackward();
+  }
+
+  async function playLoop() {
+    state.playAbortFlag = false;
+    const delayMs = Math.max(50, 2050 - dom.speedSlider.value);
+    
+    while (!state.playAbortFlag && state.currentStep < state.history.length - 1) {
+      stepForward();
+      await sleep(delayMs);
+      await yieldFrame();
+    }
+    
+    state.isPlaying = false;
+    dom.playPauseBtn.textContent = 'Play';
+  }
+  
+  function togglePlay() {
+    if (state.isPlaying) {
+      stopPlay();
+    } else {
+      if (state.currentStep >= state.history.length - 1) { 
+        state.currentStep = -1; 
+        resetForAlgorithm(false); 
+      }
+      state.isPlaying = true; 
+      dom.playPauseBtn.textContent = 'Pause';
+      playLoop();
+    }
+  }
+  
+  function stopPlay() { 
+    state.isPlaying = false; 
+    state.playAbortFlag = true;
+    dom.playPauseBtn.textContent = 'Play'; 
+  }
+
+  function updateStepUI() {
+    dom.stepCounter.textContent = `Step ${Math.max(0, state.currentStep + 1)} / ${state.history.length}`;
+    dom.prevStepBtn.disabled = state.currentStep < 0;
+    dom.nextStepBtn.disabled = state.currentStep >= state.history.length - 1;
+    dom.playPauseBtn.disabled = state.history.length === 0;
+    dom.playPauseBtn.textContent = state.isPlaying ? 'Pause' : 'Play';
+  }
+
+  /* ============================================================================
+     ALGORITHM RUNNER
+     ============================================================================ */
+  async function prepareAndRecord() {
+    if (state.isRunning) return;
+    if (state.sourceNodeId === null || state.sinkNodeId === null) {
+      log('Set source and sink first.'); 
+      return;
+    }
+    
+    setRunning(true);
+    resetForAlgorithm(true);
+    
+    const algo = document.querySelector('input[name="algorithm"]:checked').value;
+    state.currentAlgorithm = algo;  // NEW: Set current algorithm
+    
+    try {
+      if (algo === 'ek') await recordEdmondsKarp();
+      else if (algo === 'ff') await recordFordFulkerson();
+      else await recordPushRelabel();
+    } catch (err) {
+      log('Error: ' + err.message);
+      console.error(err);
+    }
+    resetForAlgorithm(false);
+    state.currentStep = -1;
+    setRunning(false);
+    updateStepUI();
+    log('Recording complete. Press Play to visualize.');
+  }
+
+  function setRunning(flag) {
+    state.isRunning = flag;
+    [dom.addNode, dom.addEdge, dom.setSource, dom.setSink, dom.runBtn, dom.resetBtn, dom.clearBtn, dom.graphSelect].forEach(el => el.disabled = flag);
+    document.querySelectorAll('input[name="algorithm"]').forEach(r => r.disabled = flag);
+    if (!flag) stopPlay();
+  }
+
+  /* ============================================================================
+     UI INTERACTION
+     ============================================================================ */
+  function setMode(m) {
+    if (state.isRunning) return;
+    if (state.currentMode === FSM.ADD_EDGE && state.edgeCreationStep === 1 && state.tempEdgeSourceId !== null) {
+      d3.select(`#node-original-${state.tempEdgeSourceId}`).select('circle').style('stroke', nodeColor(state.nodes.find(n=>n.id===state.tempEdgeSourceId)));
+      state.edgeCreationStep = 0; state.tempEdgeSourceId = null;
+    }
+    state.currentMode = state.currentMode === m ? FSM.NONE : m;
+    [dom.addNode, dom.addEdge, dom.setSource, dom.setSink].forEach(btn => btn.classList.remove('active'));
+    if (m === FSM.ADD_NODE && state.currentMode === FSM.ADD_NODE) dom.addNode.classList.add('active');
+    if (m === FSM.ADD_EDGE && state.currentMode === FSM.ADD_EDGE) dom.addEdge.classList.add('active');
+    if (m === FSM.SET_SOURCE && state.currentMode === FSM.SET_SOURCE) dom.setSource.classList.add('active');
+    if (m === FSM.SET_SINK && state.currentMode === FSM.SET_SINK) dom.setSink.classList.add('active');
+    debug(`Mode: ${state.currentMode}`);
+  }
+
+  function handleNodeClick(node) {
+    if (state.isRunning) return;
+    if (state.currentMode === FSM.SET_SOURCE) { setSource(node.id); setMode(FSM.NONE); }
+    else if (state.currentMode === FSM.SET_SINK) { setSink(node.id); setMode(FSM.NONE); }
+    else if (state.currentMode === FSM.ADD_EDGE) {
+      if (state.edgeCreationStep === 0) {
+        state.tempEdgeSourceId = node.id; state.edgeCreationStep = 1;
+        d3.select('#node-original-'+node.id).select('circle').style('stroke','#f59e0b');
+        log('Pick target node for edge (from ' + node.id + ')');
+      } else {
+        const u = state.tempEdgeSourceId, v = node.id;
+        d3.select('#node-original-'+u).select('circle').style('stroke', nodeColor(state.nodes.find(n=>n.id===u)));
+        state.tempEdgeSourceId = null; state.edgeCreationStep = 0;
+        if (u === v) { log('Cannot create self-loop.'); return; }
+        const cap = prompt(`Enter capacity for edge ${u} → ${v}`, "1");
+        if (!cap) { log('Edge creation cancelled.'); return; }
+        addEdge(u, v, Math.max(1, parseInt(cap,10)));
+      }
+    }
+  }
+
+  /* ============================================================================
+     EVENT BINDINGS
+     ============================================================================ */
+  dom.addNode.addEventListener('click', ()=> setMode(FSM.ADD_NODE));
+  dom.addEdge.addEventListener('click', ()=> setMode(FSM.ADD_EDGE));
+  dom.setSource.addEventListener('click', ()=> setMode(FSM.SET_SOURCE));
+  dom.setSink.addEventListener('click', ()=> setMode(FSM.SET_SINK));
+  dom.runBtn.addEventListener('click', prepareAndRecord);
+  dom.resetBtn.addEventListener('click', ()=> { if (!state.isRunning) resetForAlgorithm(true); });
+  dom.clearBtn.addEventListener('click', ()=> { if (!state.isRunning) clearGraph(); });
+  dom.prevStepBtn.addEventListener('click', ()=> step(-1));
+  dom.nextStepBtn.addEventListener('click', ()=> step(1));
+  dom.playPauseBtn.addEventListener('click', togglePlay);
+  
+  dom.graphSelect.addEventListener('change', (e)=> { 
+    if (e.target.value !== 'custom') {
+      loadPredefined(e.target.value);
+    } else {
+      clearGraph();
+      log('Custom graph mode');
+    }
+  });
+
+  /* ============================================================================
+     INITIALIZATION
+     ============================================================================ */
+  setupSvgs();
+  
+  (function wrapUpdateOriginalForClicks() {
+    const orig = updateOriginal;
+    updateOriginal = function() {
+      orig();
+      originalNodesG.selectAll('g.node').on('click', (e,d)=> { e.stopPropagation(); handleNodeClick(d); });
+    };
+  })();
+
+  updateBoth();
+  updateStepUI();
+  log('Max-Flow Visualizer ready (ALL BUGS FIXED)');
+
+  // Dark mode
+  (function initDark() {
+    const isDark = localStorage.getItem('theme') === 'dark' || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    if (isDark) {
+      document.documentElement.classList.add('dark');
+      dom.themeIconDark.classList.remove('hidden');
+      dom.themeIconLight.classList.add('hidden');
+    } else {
+      document.documentElement.classList.remove('dark');
+      dom.themeIconLight.classList.remove('hidden');
+      dom.themeIconDark.classList.add('hidden');
+    }
+    dom.darkToggle.addEventListener('click', ()=> {
+      document.documentElement.classList.toggle('dark');
+      localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+      dom.themeIconLight.classList.toggle('hidden');
+      dom.themeIconDark.classList.toggle('hidden');
+    });
+  })();
+
+  window.addEventListener('resize', () => {
+    try {
+      const wO = dom.originalContainer.clientWidth || 600;
+      const hO = dom.originalContainer.clientHeight || 400;
+      const wR = dom.residualContainer.clientWidth || 600;
+      const hR = dom.residualContainer.clientHeight || 400;
+      originalSvg.attr('viewBox', `0 0 ${wO} ${hO}`);
+      residualSvg.attr('viewBox', `0 0 ${wR} ${hR}`);
+      sim.force('center', d3.forceCenter(Math.max(wO,wR)/2, Math.max(hO,hR)/2)).alpha(0.3).restart();
+    } catch (e) {}
+  });
+
+});
+</script>
+
+</body>
+</html>

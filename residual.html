@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Residual Graph Visualizer (FIXED)</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <script> tailwind.config = { darkMode: 'class' } </script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .graph-container { border: 2px solid #e5e7eb; }
+        .dark .graph-container { border-color: #4b5563; }
+        .link.residual-backward { stroke-dasharray: 6,6; }
+        .edge-label {
+            pointer-events: none;
+            font-weight: 700;
+            fill: white;
+            text-anchor: middle;
+            dominant-baseline: middle;
+            font-size: 12px;
+        }
+        .nav-link { cursor: pointer; color: inherit; text-decoration: none; }
+        .nav-link.current {
+            display: inline-block;
+            background-color: rgba(17,24,39,1);
+            color: #ffffff !important;
+            padding: 0.5rem 0.9rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 6px 12px rgba(2,6,23,0.45), inset 0 -1px 0 rgba(255,255,255,0.03);
+            font-weight: 600;
+            transform: translateY(-1px);
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
+
+<nav class="bg-white dark:bg-gray-800 shadow-md sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex items-center justify-between h-16">
+            <div class="flex items-center space-x-6">
+                <a href="index.html" class="font-bold text-xl text-blue-600 dark:text-blue-400 nav-link">Max-Flow Hub</a>
+                <div class="hidden md:flex items-center space-x-2">
+                    <a href="index.html" class="text-gray-500 dark:text-gray-300 px-3 py-2 text-sm font-medium nav-link">Home</a>
+                    <a href="maxflow.html" class="text-gray-500 dark:text-gray-300 px-3 py-2 text-sm font-medium nav-link">Visualizer</a>
+                    <a href="residual.html" class="text-gray-500 dark:text-gray-300 px-3 py-2 text-sm font-medium nav-link">Residual Graphs</a>
+                    <a href="theorems.html" class="text-gray-500 dark:text-gray-300 px-3 py-2 text-sm font-medium nav-link">Theorems</a>
+                    <a href="complexity.html" class="text-gray-500 dark:text-gray-300 px-3 py-2 text-sm font-medium nav-link">Complexity</a>
+                </div>
+            </div>
+            <div class="flex items-center">
+                <button id="dark-mode-toggle" type="button" class="p-2 rounded-md text-gray-400 hover:bg-gray-700">
+                    <svg id="theme-icon-light" class="h-6 w-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                              d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707
+                                 M6.343 6.343l-.707-.707m12.728 0l-.707.707
+                                 M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+                    </svg>
+                    <svg id="theme-icon-dark" class="h-6 w-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                              d="M20.354 15.354A9 9 0 018.646 3.646
+                                 9 9 0 0012 21a9 9 0 008.354-5.646z"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+</nav>
+
+<div class="container mx-auto p-4">
+    <header class="text-center my-8">
+        <h1 class="text-4xl font-bold">Understanding Residual Graphs (FIXED)</h1>
+        <p class="text-lg text-gray-600 dark:text-gray-400">See how finding augmenting paths increases flow</p>
+    </header>
+
+    <div class="flex flex-col lg:flex-row gap-4">
+        <div class="lg:w-1/3 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg">
+            <h2 class="text-2xl font-semibold mb-4">How It Works</h2>
+            <div id="explanation-text" class="space-y-3 text-gray-700 dark:text-gray-300">
+                <p>The <strong>Residual Graph</strong> shows remaining capacity for more flow.</p>
+                <ul class="list-disc list-inside space-y-1">
+                    <li><strong>Forward edge</strong>: residual = <code>capacity - flow</code></li>
+                    <li><strong>Backward edge</strong>: residual = <code>flow</code></li>
+                </ul>
+            </div>
+            <div class="mt-6 pt-4 border-t dark:border-gray-600">
+                <button id="find-path-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-bold">
+                    Find Next Augmenting Path
+                </button>
+                <button id="reset-btn" class="w-full mt-2 bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg font-bold">
+                    Reset
+                </button>
+            </div>
+        </div>
+
+        <div class="lg:w-2/3 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg">
+                <h3 class="text-xl font-semibold text-center mb-2">Original Flow Network</h3>
+                <p class="text-center text-sm mb-1">Total Flow:
+                    <span id="total-flow" class="font-bold text-blue-600 dark:text-blue-400 text-lg">0</span>
+                </p>
+                <div id="original-graph" class="graph-container h-96 rounded-md"></div>
+            </div>
+
+            <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg">
+                <h3 class="text-xl font-semibold text-center mb-1">Residual Graph</h3>
+                <p class="text-center text-gray-500 dark:text-gray-400 text-sm">S–T paths augment flow. Backward (dashed) = undo capacity.</p>
+                <div id="residual-graph" class="graph-container h-96 rounded-md"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    (function setActiveNav() {
+        const links = document.querySelectorAll('.nav-link');
+        let currentFile = (window.location.pathname || '').split('/').pop();
+        if (!currentFile) currentFile = 'index.html';
+        if (currentFile.includes(':')) {
+            try {
+                const href = window.location.href;
+                const fn = href.split('/').pop();
+                if (fn) currentFile = fn.split('?')[0].split('#')[0];
+            } catch (e) {}
+        }
+        links.forEach(a => {
+            const href = a.getAttribute('href') || '';
+            const file = href.split('/').pop();
+            if (file && file === currentFile) {
+                a.classList.add('current');
+            } else {
+                a.classList.remove('current');
+            }
+        });
+    })();
+
+    let nodes, links, sourceNodeId, sinkNodeId;
+    let simulations = {};
+
+    const findPathBtn = document.getElementById('find-path-btn');
+    const resetBtn = document.getElementById('reset-btn');
+    const totalFlowEl = document.getElementById('total-flow');
+    const explanationText = document.getElementById('explanation-text');
+
+    // FIX: Correct flow setter
+    function setEdgeFlow(edge, newFlow) {
+        edge.flow = Math.max(0, Math.min(edge.capacity, newFlow));
+    }
+
+    function setupGraph(containerId) {
+        const container = document.getElementById(containerId);
+        const width = container.clientWidth || 600;
+        const height = container.clientHeight || 400;
+
+        const svg = d3.select(container).append("svg")
+            .attr("width", "100%").attr("height", "100%")
+            .attr("viewBox", `0 0 ${width} ${height}`);
+
+        const marker = svg.append("defs").append("marker")
+            .attr("id", `arrow-${containerId}`)
+            .attr("viewBox", "0 -5 10 10")
+            .attr("refX", 25)
+            .attr("refY", 0)
+            .attr("markerWidth", 6)
+            .attr("markerHeight", 6)
+            .attr("orient", "auto");
+
+        const arrowFill = containerId === 'residual-graph' ? '#9333ea' : '#6b7280';
+
+        marker.append("path")
+            .attr("d", "M0,-5L10,0L0,5")
+            .style("fill", arrowFill)
+            .style("stroke", arrowFill);
+
+        const simulation = d3.forceSimulation()
+            .force("link", d3.forceLink().id(d => d.id).distance(120))
+            .force("charge", d3.forceManyBody().strength(-400))
+            .force("center", d3.forceCenter(width / 2, height / 2));
+
+        simulations[containerId] = simulation;
+        return svg;
+    }
+
+    const originalSvg = setupGraph('original-graph');
+    const residualSvg = setupGraph('residual-graph');
+
+    function updateVisualizations() {
+        updateSingleGraph(originalSvg, 'original-graph', nodes, links, (d) => `${d.flow}/${d.capacity}`, false);
+
+        // FIX: Correct residual graph building
+        const residualLinks = [];
+        links.forEach(l => {
+            const forwardCapacity = l.capacity - l.flow;
+            if (forwardCapacity > 0) {
+                residualLinks.push({
+                    source: l.source.id || l.source,
+                    target: l.target.id || l.target,
+                    capacity: forwardCapacity,
+                    isBackward: false,
+                    originalCapacity: l.capacity,
+                    originalFlow: l.flow
+                });
+            }
+            const backwardCapacity = l.flow;
+            // FIX: Only add backward if flow > 0 and not from sink
+            if (backwardCapacity > 0 && (l.source.id || l.source) !== sinkNodeId) {
+                residualLinks.push({
+                    source: l.target.id || l.target,
+                    target: l.source.id || l.source,
+                    capacity: backwardCapacity,
+                    isBackward: true,
+                    originalCapacity: l.capacity,
+                    originalFlow: l.flow
+                });
+            }
+        });
+
+        updateSingleGraph(residualSvg, 'residual-graph', nodes, residualLinks, (d) => `${d.capacity}`, true);
+
+        simulations['original-graph'].nodes(nodes);
+        simulations['residual-graph'].nodes(nodes);
+
+        simulations['original-graph'].on('tick', () => {
+            originalSvg.selectAll("g.node-container").attr("transform", d => `translate(${d.x}, ${d.y})`);
+            residualSvg.selectAll("g.node-container").attr("transform", d => `translate(${d.x}, ${d.y})`);
+
+            originalSvg.selectAll("path.link")
+                .attr("d", d => `M${d.source.x},${d.source.y} L${d.target.x},${d.target.y}`);
+
+            originalSvg.selectAll("text.edge-label")
+                .attr("x", d => (d.source.x + d.target.x) / 2)
+                .attr("y", d => (d.source.y + d.target.y) / 2);
+
+            residualSvg.selectAll("path.link")
+                .attr("d", d => {
+                    const sx = d.source.x, sy = d.source.y;
+                    const tx = d.target.x, ty = d.target.y;
+
+                    if (d.isBackward) {
+                        const mx = (sx + tx) / 2;
+                        const my = (sy + ty) / 2;
+                        const dx = tx - sx;
+                        const dy = ty - sy;
+                        const len = Math.sqrt(dx*dx + dy*dy) || 1;
+                        const offset = Math.min(80, 40 + len * 0.05);
+                        const nx = -dy / len;
+                        const ny = dx / len;
+                        const cx = mx + nx * offset;
+                        const cy = my + ny * offset;
+                        return `M${sx},${sy} Q${cx},${cy} ${tx},${ty}`;
+                    } else {
+                        return `M${sx},${sy} L${tx},${ty}`;
+                    }
+                });
+
+            residualSvg.selectAll("text.edge-label")
+                .attr("x", d => {
+                    const sx = d.source.x, sy = d.source.y;
+                    const tx = d.target.x, ty = d.target.y;
+                    if (d.isBackward) {
+                        const mx = (sx + tx) / 2;
+                        const my = (sy + ty) / 2;
+                        const dx = tx - sx, dy = ty - sy;
+                        const len = Math.sqrt(dx*dx + dy*dy) || 1;
+                        const offset = Math.min(80, 40 + len * 0.05);
+                        const nx = -dy / len;
+                        const cx = mx + nx * offset;
+                        return 0.25 * sx + 0.5 * cx + 0.25 * tx;
+                    } else {
+                        return (sx + tx) / 2;
+                    }
+                })
+                .attr("y", d => {
+                    const sx = d.source.x, sy = d.source.y;
+                    const tx = d.target.x, ty = d.target.y;
+                    if (d.isBackward) {
+                        const mx = (sx + tx) / 2;
+                        const my = (sy + ty) / 2;
+                        const dx = tx - sx, dy = ty - sy;
+                        const len = Math.sqrt(dx*dx + dy*dy) || 1;
+                        const offset = Math.min(80, 40 + len * 0.05);
+                        const ny = dx / len;
+                        const cy = my + ny * offset;
+                        return 0.25 * sy + 0.5 * cy + 0.25 * ty;
+                    } else {
+                        return (sy + ty) / 2;
+                    }
+                });
+        });
+    }
+
+    function updateSingleGraph(svg, containerId, graphNodes, graphLinks, labelFn, isResidual) {
+        const nodeUpdate = svg.selectAll("g.node-container").data(graphNodes, d => d.id);
+        const nodeEnter = nodeUpdate.enter().append("g").attr("class", "node-container").attr("id", d => `${containerId}-node-${d.id}`);
+        nodeEnter.append("circle").attr("r", 20).style("fill", "white").style("stroke-width", "3px");
+        nodeEnter.append("text").attr("dy", ".35em").attr("text-anchor", "middle").style("pointer-events", "none").style("font-weight", "bold");
+
+        nodeEnter.merge(nodeUpdate).select("circle").style("stroke", d => (d.id === sourceNodeId) ? '#16a34a' : (d.id === sinkNodeId) ? '#dc2626' : '#4b5563');
+        nodeEnter.merge(nodeUpdate).select("text").text(d => (d.id === sourceNodeId) ? 'S' : (d.id === sinkNodeId) ? 'T' : d.id);
+
+        const linkKey = d => `${d.source.id || d.source}-${d.target.id || d.target}-${d.isBackward ? 'b' : 'f'}`;
+        const linkUpdate = svg.selectAll("path.link").data(graphLinks, linkKey);
+
+        linkUpdate.exit().remove();
+
+        const linkEnter = linkUpdate.enter()
+            .append("path")
+            .attr("class", "link")
+            .attr("marker-end", `url(#arrow-${containerId})`)
+            .style("fill", "none");
+
+        const linkMerged = linkEnter.merge(linkUpdate)
+            .attr("class", d => `link ${d.isBackward ? 'residual-backward' : ''}`);
+
+        linkMerged
+            .style("stroke-width", 3)
+            .style("stroke", d => {
+                if (isResidual) {
+                    return d.isBackward ? '#9333ea' : '#6b7280';
+                } else {
+                    return '#6b7280';
+                }
+            })
+            .style("stroke-dasharray", d => (isResidual && d.isBackward) ? "6,6" : "0")
+            .style("opacity", 1.0);
+
+        const labelUpdate = svg.selectAll("text.edge-label").data(graphLinks, linkKey);
+        labelUpdate.exit().remove();
+        const labelEnter = labelUpdate.enter().append("text").attr("class", "edge-label")
+            .style("fill", "#ffffff").style("font-size", "12px")
+            .style("text-anchor", "middle").style("dominant-baseline", "middle");
+        labelEnter.merge(labelUpdate).text(labelFn);
+
+        simulations[containerId].nodes(graphNodes);
+        simulations[containerId].force("link").links(graphLinks);
+        simulations[containerId].alpha(1).restart();
+    }
+
+    // FIX: Store edge references in parent map
+    function findAugmentingPath() {
+        const parent = {};
+        const queue = [sourceNodeId];
+        const visited = new Set([sourceNodeId]);
+        parent[sourceNodeId] = { prev: -1, edge: null, isBackward: false };
+
+        let pathFound = false;
+        while (queue.length > 0) {
+            const u = queue.shift();
+            if (u === sinkNodeId) { pathFound = true; break; }
+
+            links.filter(l => l.source.id === u && l.capacity - l.flow > 0 && !visited.has(l.target.id))
+                .forEach(l => { 
+                    visited.add(l.target.id); 
+                    parent[l.target.id] = { prev: u, edge: l, isBackward: false }; 
+                    queue.push(l.target.id); 
+                });
+
+            // FIX: Never explore backward from sink
+            if (u !== sinkNodeId) {
+                links.filter(l => l.target.id === u && l.flow > 0 && !visited.has(l.source.id))
+                    .forEach(l => { 
+                        visited.add(l.source.id); 
+                        parent[l.source.id] = { prev: u, edge: l, isBackward: true }; 
+                        queue.push(l.source.id); 
+                    });
+            }
+        }
+
+        if (!pathFound) {
+            explanationText.innerHTML = `<p class="text-lg font-semibold text-green-600 dark:text-green-400">No more augmenting paths. Flow is maximal!</p>`;
+            findPathBtn.disabled = true;
+            return null;
+        }
+
+        let path = [];
+        let pathFlow = Infinity;
+        let curr = sinkNodeId;
+        
+        while (curr !== -1) {
+            path.unshift(curr);
+            const parentInfo = parent[curr];
+            if (parentInfo.prev !== -1) {
+                // FIX: Use stored edge reference
+                if (parentInfo.isBackward) {
+                    pathFlow = Math.min(pathFlow, parentInfo.edge.flow);
+                } else {
+                    pathFlow = Math.min(pathFlow, parentInfo.edge.capacity - parentInfo.edge.flow);
+                }
+            }
+            curr = parentInfo.prev;
+        }
+        
+        return { path, pathFlow, parent };
+    }
+
+    function runStep() {
+        const pathInfo = findAugmentingPath();
+        if (!pathInfo) return;
+
+        const { path, pathFlow, parent } = pathInfo;
+
+        highlightPath(residualSvg, path, '#3b82f6');
+
+        // FIX: Apply using stored edges
+        let curr = sinkNodeId;
+        while (curr !== -1) {
+            const parentInfo = parent[curr];
+            if (parentInfo.prev !== -1) {
+                if (parentInfo.isBackward) {
+                    setEdgeFlow(parentInfo.edge, parentInfo.edge.flow - pathFlow);
+                } else {
+                    setEdgeFlow(parentInfo.edge, parentInfo.edge.flow + pathFlow);
+                }
+            }
+            curr = parentInfo.prev;
+        }
+
+        totalFlowEl.textContent = String(parseInt(totalFlowEl.textContent || '0') + pathFlow);
+
+        explanationText.innerHTML = `<p>Found path: <strong class="text-blue-600 dark:text-blue-400">${path.join(' → ')}</strong>.</p><p>Bottleneck = <strong>${pathFlow}</strong>. Pushed this amount along path.</p>`;
+
+        setTimeout(() => {
+            highlightPath(residualSvg, path, null);
+            updateVisualizations();
+        }, 900);
+    }
+
+    function highlightPath(svg, path, color) {
+        for (let i = 0; i < path.length - 1; i++) {
+            const u = path[i], v = path[i+1];
+            svg.selectAll('path.link')
+                .filter(d => (d.source.id === u && d.target.id === v) || (d.source === u && d.target === v))
+                .transition().duration(250)
+                .style('stroke', color || (d => d.isBackward ? '#9333ea' : '#6b7280'));
+        }
+    }
+
+    function initialize() {
+        nodes = [
+            { id: 0, fx: 100, fy: 150 }, { id: 1, fx: 250, fy: 80 },
+            { id: 2, fx: 250, fy: 220 }, { id: 3, fx: 400, fy: 150 }
+        ];
+        links = [
+            { source: 0, target: 1, capacity: 10, flow: 0 },
+            { source: 0, target: 2, capacity: 5, flow: 0 },
+            { source: 1, target: 2, capacity: 6, flow: 0 },
+            { source: 1, target: 3, capacity: 5, flow: 0 },
+            { source: 2, target: 3, capacity: 10, flow: 0 }
+        ];
+        sourceNodeId = 0;
+        sinkNodeId = 3;
+        totalFlowEl.textContent = '0';
+        findPathBtn.disabled = false;
+        explanationText.innerHTML = `<p>Sample flow network. Click to find augmenting paths using BFS (Edmonds-Karp).</p>`;
+        updateVisualizations();
+    }
+
+    findPathBtn.addEventListener('click', runStep);
+    resetBtn.addEventListener('click', initialize);
+
+    initialize();
+
+    const darkModeToggle = document.getElementById('dark-mode-toggle');
+    const themeIconLight = document.getElementById('theme-icon-light');
+    const themeIconDark = document.getElementById('theme-icon-dark');
+    if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark');
+        themeIconLight.classList.remove('hidden');
+        themeIconDark.classList.add('hidden');
+    } else {
+        themeIconLight.classList.add('hidden');
+        themeIconDark.classList.remove('hidden');
+    }
+    darkModeToggle.addEventListener('click', () => {
+        document.documentElement.classList.toggle('dark');
+        localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+        themeIconLight.classList.toggle('hidden');
+        themeIconDark.classList.toggle('hidden');
+    });
+});
+</script>
+
+</body>
+</html>

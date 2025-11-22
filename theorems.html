@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en" class="light">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Max-Flow Theorems</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script> tailwind.config = { darkMode: 'class' } </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .theorem-section {
+            @apply bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg mb-8;
+        }
+        .d3-container {
+            @apply border-2 border-gray-200 dark:border-gray-700 rounded-md mt-4;
+            min-height: 300px;
+        }
+        .node.s-cut {
+            stroke: #1d4ed8; /* blue-700 */
+            fill: #dbeafe; /* blue-100 */
+        }
+        .dark .node.s-cut { fill: #1e3a8a; /* blue-900 */ }
+
+        .link.cut-edge {
+            stroke: #dc2626; /* red-600 kept for edge highlight if desired */
+            stroke-dasharray: 6,6;
+            stroke-width: 3px !important;
+        }
+
+        text.edge-label {
+            font-size: 12px;
+            font-weight: 600;
+            fill: white;
+            stroke: rgba(0,0,0,0.7);
+            stroke-width: 0.8px;
+            paint-order: stroke;
+            pointer-events: none;
+        }
+
+        /* Thin white cut curve that avoids edge labels */
+        .cut-curve {
+            fill: none;
+            stroke: rgba(255,255,255,0.98); /* thin white for high contrast */
+            stroke-width: 3px;               /* thin */
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            pointer-events: none;
+            filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
+        }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
+
+    <!-- Navigation Bar -->
+    <nav class="bg-white dark:bg-gray-800 shadow-md sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                 <div class="flex items-center">
+                    <span class="font-bold text-xl text-blue-600 dark:text-blue-400">Max-Flow Hub</span>
+                    <div class="hidden md:block">
+                        <div class="ml-10 flex items-baseline space-x-4">
+                            <a href="index.html" class="text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2 rounded-md text-sm font-medium">Home</a>
+                            <a href="maxflow.html" class="text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2 rounded-md text-sm font-medium">Visualizer</a>
+                            <a href="residual.html" class="text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2 rounded-md text-sm font-medium">Residual Graphs</a>
+                            <a href="theorems.html" class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white px-3 py-2 rounded-md text-sm font-medium">Theorems</a>
+                            <a href="complexity.html" class="text-gray-500 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 px-3 py-2 rounded-md text-sm font-medium">Complexity</a>
+                        </div>
+                    </div>
+                </div>
+                <button id="dark-mode-toggle" class="p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 focus:outline-none">
+                  <svg id="theme-icon-light" class="h-6 w-6 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                  <svg id="theme-icon-dark" class="h-6 w-6 hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center my-8">
+            <h1 class="text-4xl font-bold">Interactive Core Theorems</h1>
+            <p class="text-lg mt-2 text-gray-600 dark:text-gray-400">Visualize the foundational principles of network flow.</p>
+        </header>
+
+        <!-- Theorem 1: Max-Flow Min-Cut -->
+        <section id="min-cut-section" class="theorem-section">
+            <h2 class="text-2xl font-semibold">1. Max-Flow Min-Cut Theorem</h2>
+            <p class="mt-2">This fundamental theorem states that in a flow network, the maximum flow from a source <span class="font-mono">s</span> to a sink <span class="font-mono">t</span> is equal to the minimum capacity of an <span class="font-mono">s-t</span> cut.</p>
+            <div class="flex flex-col md:flex-row gap-4 mt-4">
+                <div class="md:w-1/2">
+                    <div id="min-cut-graph" class="d3-container"></div>
+                </div>
+                <div class="md:w-1/2">
+                    <h3 class="font-semibold">Interactive Steps:</h3>
+                    <ol class="list-decimal list-inside mt-2 space-y-2">
+                        <li><strong>Run Max-Flow:</strong> Calculates the maximum flow using Edmonds-Karp.</li>
+                        <li><strong>Find Min-Cut:</strong> Finds all nodes reachable from S in the residual graph. These nodes form one side of the cut (the S-side).</li>
+                        <li><strong>Highlight Cut:</strong> Highlights the S-side nodes and the edges that cross from the S-side to the T-side.</li>
+                    </ol>
+                    <div class="mt-4">
+                        <button id="run-max-flow-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg">1. Run Max-Flow</button>
+                        <button id="find-min-cut-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg" disabled>2. Find & Highlight Min-Cut</button>
+                    </div>
+                    <div id="min-cut-results" class="mt-4 p-4 bg-gray-100 dark:bg-gray-700 rounded-md">
+                        <strong>Results:</strong>
+                        <p>Max Flow: <span id="max-flow-result" class="font-bold">?</span></p>
+                        <p>Min-Cut Capacity: <span id="min-cut-result" class="font-bold">?</span></p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+
+        // --- Generic D3 Setup ---
+        function setupD3(containerId, nodes, links) {
+            const container = document.getElementById(containerId);
+            const width = Math.max(600, container.clientWidth);
+            const height = 300;
+
+            const svg = d3.select(container).append("svg")
+                .attr("width", "100%").attr("height", "100%")
+                .attr("viewBox", `0 0 ${width} ${height}`);
+
+            // --- marker (arrow) setup ---
+            svg.append("defs").append("marker")
+                .attr("id", `arrow-${containerId}`)
+                .attr("viewBox", "0 -5 10 10")
+                .attr("refX", 22)
+                .attr("refY", 0)
+                .attr("markerWidth", 8)
+                .attr("markerHeight", 8)
+                .attr("orient", "auto")
+                .append("path")
+                .attr("d", "M0,-5L10,0L0,5")
+                .style("fill", "#6b7280");
+
+            const simulation = d3.forceSimulation(nodes)
+                .force("link", d3.forceLink(links).id(d => d.id).distance(120))
+                .force("charge", d3.forceManyBody().strength(-400))
+                .force("center", d3.forceCenter(width / 2, height / 2));
+
+            const link = svg.append("g").selectAll("path").data(links).join("path")
+                .attr("class", "link")
+                .attr("marker-end", `url(#arrow-${containerId})`)
+                .style("stroke", "#6b7280")
+                .style("stroke-width", 3);
+
+            const node = svg.append("g").selectAll("g").data(nodes).join("g")
+                .attr("class", "node-container");
+            node.append("circle")
+                .attr("class", "node")
+                .attr("r", 20)
+                .style("fill", "white")
+                .style("stroke-width", "3px");
+            node.append("text")
+                .attr("dy", ".35em")
+                .attr("text-anchor", "middle")
+                .style("font-weight", "bold");
+
+            const label = svg.append("g").selectAll("text.edge-label").data(links).join("text")
+                .attr("class", "edge-label");
+
+            svg.append("g").attr("class", "cut-layer");
+
+            simulation.on("tick", () => {
+                node.attr("transform", d => `translate(${d.x}, ${d.y})`);
+                link.attr("d", d => `M${d.source.x},${d.source.y} L ${d.target.x},${d.target.y}`);
+
+                // place label beside edge (compute midpoint + perpendicular offset)
+                label.attr("x", d => {
+                    const mx = (d.source.x + d.target.x) / 2;
+                    const dx = d.target.x - d.source.x;
+                    const dy = d.target.y - d.source.y;
+                    const len = Math.sqrt(dx*dx + dy*dy) || 1;
+                    const offset = 14; // distance from edge
+                    const ox = -dy / len * offset;
+                    return mx + ox;
+                }).attr("y", d => {
+                    const my = (d.source.y + d.target.y) / 2;
+                    const dx = d.target.x - d.source.x;
+                    const dy = d.target.y - d.source.y;
+                    const len = Math.sqrt(dx*dx + dy*dy) || 1;
+                    const offset = 14;
+                    const oy = dx / len * offset;
+                    return my + oy;
+                }).attr("text-anchor", "middle");
+            });
+
+            return { svg, simulation, node, link, label };
+        }
+
+        function updateGraph(elements, nodes, links, sourceId, sinkId) {
+            const { node, link, label } = elements;
+            node.select("circle")
+                .style("stroke", d => (d.id === sourceId) ? '#16a34a' : (d.id === sinkId) ? '#dc2626' : '#4b5563');
+            node.select("text")
+                .text(d => (d.id === sourceId) ? 'S' : (d.id === sinkId) ? 'T' : d.id);
+            label.text(d => `${d.flow}/${d.capacity}`);
+        }
+
+        // --- Max-Flow Min-Cut Visualization ---
+        (function () {
+            const dom = {
+                runBtn: document.getElementById('run-max-flow-btn'),
+                cutBtn: document.getElementById('find-min-cut-btn'),
+                maxFlowEl: document.getElementById('max-flow-result'),
+                minCutEl: document.getElementById('min-cut-result'),
+            };
+
+            let nodes, links, sourceId, sinkId, d3Elements;
+
+            function initialize() {
+                nodes = [
+                    { id: 0, fx: 50, fy: 150 }, { id: 1, fx: 180, fy: 80 },
+                    { id: 2, fx: 180, fy: 220 }, { id: 3, fx: 310, fy: 150 }
+                ];
+                links = [
+                    { source: 0, target: 1, capacity: 10, flow: 0 }, { source: 0, target: 2, capacity: 5, flow: 0 },
+                    { source: 1, target: 2, capacity: 6, flow: 0 }, { source: 1, target: 3, capacity: 5, flow: 0 },
+                    { source: 2, target: 3, capacity: 10, flow: 0 }
+                ];
+                sourceId = 0;
+                sinkId = 3;
+
+                document.getElementById('min-cut-graph').innerHTML = '';
+                d3Elements = setupD3('min-cut-graph', nodes, links);
+                updateGraph(d3Elements, nodes, links, sourceId, sinkId);
+
+                dom.runBtn.disabled = false;
+                dom.cutBtn.disabled = true;
+                dom.maxFlowEl.textContent = '?';
+                dom.minCutEl.textContent = '?';
+            }
+
+            dom.runBtn.addEventListener('click', () => {
+                const { maxFlow } = runEdmondsKarp();
+                dom.maxFlowEl.textContent = maxFlow;
+                updateGraph(d3Elements, nodes, links, sourceId, sinkId);
+                dom.runBtn.disabled = true;
+                dom.cutBtn.disabled = false;
+            });
+
+            dom.cutBtn.addEventListener('click', () => {
+                const { sCutNodes, cutCapacity, cutEdges } = findMinCut();
+                dom.minCutEl.textContent = cutCapacity;
+
+                d3Elements.node.select('circle').classed('s-cut', d => sCutNodes.has(d.id));
+                d3Elements.link.classed('cut-edge', d => sCutNodes.has(d.source.id) && !sCutNodes.has(d.target.id));
+
+                drawCutCurve(cutEdges);
+                dom.cutBtn.disabled = true;
+            });
+
+            function runEdmondsKarp() {
+                let maxFlow = 0;
+                while(true) {
+                    const pathInfo = findBfsPath();
+                    if (!pathInfo) break;
+                    maxFlow += pathInfo.pathFlow;
+                    augment(pathInfo.path, pathInfo.pathFlow);
+                }
+                return { maxFlow };
+            }
+
+            function findBfsPath() {
+                const parent = {};
+                const queue = [sourceId];
+                parent[sourceId] = -1;
+                const visited = new Set([sourceId]);
+
+                while(queue.length > 0) {
+                    const u = queue.shift();
+                    if (u === sinkId) break;
+
+                    links.filter(l => l.source.id === u && l.capacity - l.flow > 0 && !visited.has(l.target.id))
+                         .forEach(l => { visited.add(l.target.id); parent[l.target.id] = u; queue.push(l.target.id); });
+
+                    links.filter(l => l.target.id === u && l.flow > 0 && !visited.has(l.source.id))
+                         .forEach(l => { visited.add(l.source.id); parent[l.source.id] = u; queue.push(l.source.id); });
+                }
+
+                if (parent[sinkId] === undefined) return null;
+
+                let path = [], pathFlow = Infinity, curr = sinkId;
+                while (curr !== -1) {
+                    path.unshift(curr);
+                    const prev = parent[curr];
+                    if (prev !== -1 && prev !== undefined) {
+                        const edgeForward = links.find(l => l.source.id === prev && l.target.id === curr);
+                        if (edgeForward) pathFlow = Math.min(pathFlow, edgeForward.capacity - edgeForward.flow);
+                        else {
+                            const edgeBackward = links.find(l => l.source.id === curr && l.target.id === prev);
+                            pathFlow = Math.min(pathFlow, edgeBackward.flow);
+                        }
+                    }
+                    curr = prev;
+                }
+                return { path, pathFlow };
+            }
+
+            function augment(path, pathFlow) {
+                for (let i = 0; i < path.length - 1; i++) {
+                    const u = path[i], v = path[i + 1];
+                    let edge = links.find(l => l.source.id === u && l.target.id === v);
+                    if (edge) edge.flow += pathFlow;
+                    else links.find(l => l.source.id === v && l.target.id === u).flow -= pathFlow;
+                }
+            }
+
+            function findMinCut() {
+                const sCutNodes = new Set();
+                const queue = [sourceId];
+                sCutNodes.add(sourceId);
+
+                while (queue.length > 0) {
+                    const u = queue.shift();
+
+                    links.filter(l => l.source.id === u && l.capacity - l.flow > 0 && !sCutNodes.has(l.target.id))
+                        .forEach(l => { sCutNodes.add(l.target.id); queue.push(l.target.id); });
+
+                    links.filter(l => l.target.id === u && l.flow > 0 && !sCutNodes.has(l.source.id))
+                        .forEach(l => { sCutNodes.add(l.source.id); queue.push(l.source.id); });
+                }
+
+                let cutCapacity = 0;
+                const cutEdges = [];
+                links.forEach(l => {
+                    if (sCutNodes.has(l.source.id) && !sCutNodes.has(l.target.id)) {
+                        cutCapacity += l.capacity;
+                        cutEdges.push(l);
+                    }
+                });
+                return { sCutNodes, cutCapacity, cutEdges };
+            }
+
+            // draw a thin cut curve offset so it does not overlap the edge capacity labels
+            function drawCutCurve(cutEdges) {
+                const svg = d3Elements.svg;
+                svg.selectAll('.cut-curve').remove();
+                if (!cutEdges || cutEdges.length === 0) return;
+
+                // compute midpoints and normals (perpendicular) for each cut edge
+                const points = cutEdges.map(l => {
+                    const mx = (l.source.x + l.target.x) / 2;
+                    const my = (l.source.y + l.target.y) / 2;
+                    const dx = l.target.x - l.source.x;
+                    const dy = l.target.y - l.source.y;
+                    const len = Math.sqrt(dx*dx + dy*dy) || 1;
+                    // perpendicular vector (normalized)
+                    let nx = -dy / len;
+                    let ny = dx / len;
+                    return { x: mx, y: my, nx, ny, edge: l };
+                });
+
+                // centroid of midpoints
+                const centroid = {
+                    x: d3.mean(points, p => p.x),
+                    y: d3.mean(points, p => p.y)
+                };
+
+                const offsetAmount = 30; // bigger offset to avoid labels (tune this if needed)
+
+                // choose direction of perpendicular that pushes the point away from centroid
+                const offsetPoints = points.map(p => {
+                    const vx = p.x - centroid.x;
+                    const vy = p.y - centroid.y;
+                    // dot product between perp and vector-to-centroid
+                    const dot = p.nx * vx + p.ny * vy;
+                    // if dot < 0, perp points toward centroid, flip it so it points away
+                    const sign = dot < 0 ? -1 : 1;
+                    const ox = p.nx * offsetAmount * sign;
+                    const oy = p.ny * offsetAmount * sign;
+                    return { x: p.x + ox, y: p.y + oy };
+                });
+
+                // If only one crossing edge, draw a small perpendicular arc so it doesn't sit on label
+                if (offsetPoints.length === 1) {
+                    const p = offsetPoints[0];
+                    const orig = points[0];
+                    const arcP1 = { x: p.x - orig.nx * 12, y: p.y - orig.ny * 12 };
+                    const arcP2 = { x: p.x + orig.nx * 12, y: p.y + orig.ny * 12 };
+                    const d = `M ${arcP1.x},${arcP1.y} Q ${p.x},${p.y} ${arcP2.x},${arcP2.y}`;
+                    svg.select('.cut-layer')
+                        .append('path')
+                        .attr('class', 'cut-curve')
+                        .attr('d', d);
+                    return;
+                }
+
+                // sort offsetPoints by angle around centroid for nice curve
+                offsetPoints.sort((a,b) => Math.atan2(a.y - centroid.y, a.x - centroid.x) - Math.atan2(b.y - centroid.y, b.x - centroid.x));
+
+                const line = d3.line()
+                    .x(d => d.x)
+                    .y(d => d.y)
+                    .curve(d3.curveBasis);
+
+                // extend ends a little to make the cut clearly pass beyond edges
+                const extended = offsetPoints.slice();
+                const e0 = { x: extended[0].x - centroid.x, y: extended[0].y - centroid.y };
+                const en = { x: extended[extended.length-1].x - centroid.x, y: extended[extended.length-1].y - centroid.y };
+                const extendFactor = 0.45;
+                extended[0] = { x: extended[0].x + e0.x * extendFactor, y: extended[0].y + e0.y * extendFactor };
+                extended[extended.length-1] = { x: extended[extended.length-1].x + en.x * extendFactor, y: extended[extended.length-1].y + en.y * extendFactor };
+
+                svg.select('.cut-layer')
+                    .append('path')
+                    .attr('class', 'cut-curve')
+                    .attr('d', line(extended));
+            }
+
+            initialize();
+        })();
+
+        // --- Dark Mode ---
+        const darkModeToggle = document.getElementById('dark-mode-toggle');
+        const themeIconLight = document.getElementById('theme-icon-light');
+        const themeIconDark = document.getElementById('theme-icon-dark');
+        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+            themeIconLight.classList.remove('hidden');
+            themeIconDark.classList.add('hidden');
+        } else {
+            themeIconLight.classList.add('hidden');
+            themeIconDark.classList.remove('hidden');
+        }
+        darkModeToggle.addEventListener('click', () => {
+            document.documentElement.classList.toggle('dark');
+            localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+            themeIconLight.classList.toggle('hidden');
+            themeIconDark.classList.toggle('hidden');
+        });
+
+    });
+    </script>
+</body>
+</html>
