@@ -22,6 +22,7 @@
         .node { stroke-width: 3px; fill: white; cursor: pointer; }
         .node-attrs { font-size: 11px; pointer-events: none; text-anchor: middle; font-weight: 700; paint-order: stroke; stroke: #ffffff; stroke-width: 3px; fill: #111827; dominant-baseline: hanging; }
         .dark .node-attrs { fill: #e5e7eb; stroke: #000000; }
+        .dark .edge-label { fill: #e5e7eb; stroke: #000000; }
     </style>
 </head>
 <body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200">
@@ -31,11 +32,7 @@
     <div class="flex items-center space-x-4">
       <span class="text-xl font-bold text-blue-600 dark:text-blue-400">Max-Flow Hub</span>
       <div class="hidden md:flex space-x-3 text-sm text-gray-600 dark:text-gray-300">
-        <a href="index.html">Home</a>
-        <a href="maxflow.html" class="font-semibold">Visualizer</a>
-        <a href="residual.html">Residual</a>
-        <a href="theorems.html">Theorems</a>
-        <a href="complexity.html">Complexity</a>
+        <a href="#" class="font-semibold">Visualizer</a>
       </div>
     </div>
     <button id="dark-mode-toggle" class="p-2 rounded text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700">
@@ -136,7 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
     isRunning: false, history: [], currentStep: -1,
     isPlaying: false, playAbortFlag: false,
     heights: {}, excesses: {},
-    currentAlgorithm: null  // NEW: Track which algorithm is running
+    currentAlgorithm: null
   };
 
   const FSM = { NONE:'NONE', ADD_NODE:'ADD_NODE', ADD_EDGE:'ADD_EDGE', SET_SOURCE:'SET_SOURCE', SET_SINK:'SET_SINK' };
@@ -168,7 +165,6 @@ document.addEventListener('DOMContentLoaded', () => {
   function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
   function yieldFrame(){ return new Promise(r => requestAnimationFrame(r)); }
 
-  // FIX #2: Enforce flow bounds - CRITICAL for correct residual graph
   function setEdgeFlow(edge, newFlow) {
     edge.flow = Math.max(0, Math.min(edge.capacity, newFlow));
   }
@@ -318,7 +314,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /* ============================================================================
-     D3 UPDATE FUNCTIONS (FIX #3: Correct residual graph building)
+     D3 UPDATE FUNCTIONS
      ============================================================================ */
   function updateBoth() { updateOriginal(); updateResidual(); }
 
@@ -342,7 +338,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }).filter(link => link.source && link.target);
   }
 
-  // FIX #3: Correct residual graph building
   function buildResidualLinks() {
     const R = [];
     state.links.forEach(l => {
@@ -355,13 +350,11 @@ document.addEventListener('DOMContentLoaded', () => {
       
       const currentFlow = l.flow || 0;
       
-      // Forward edge: capacity - flow
       const forwardCap = l.capacity - currentFlow;
       if (forwardCap > 0) {
         R.push({ source: u, target: v, capacity: forwardCap, isBackward: false, orig: l });
       }
       
-      // Backward edge: flow (only if flow > 0)
       if (currentFlow > 0) {
         R.push({
           source: v,
@@ -375,7 +368,6 @@ document.addEventListener('DOMContentLoaded', () => {
     return R;
   }
 
-  // NEW: Helper function to determine if node attrs should be shown
   function shouldShowNodeAttrs() {
     return state.currentAlgorithm === 'pr';
   }
@@ -400,16 +392,20 @@ document.addEventListener('DOMContentLoaded', () => {
                            .on('end', (e,d)=>{ if(!e.active) sim.alphaTarget(0); }));
     nenter.append('circle').attr('r',20).style('fill','white').style('stroke','#374151');
     nenter.append('text').attr('dy','.35em').attr('text-anchor','middle').style('pointer-events','none').style('font-weight','700');
-    // new: node attrs (height & excess)
     nenter.append('text').attr('class','node-attrs').attr('dy','2.1em').attr('text-anchor','middle').style('pointer-events','none');
 
     const merged = nenter.merge(nsel);
     merged.select('circle').style('stroke', d => nodeColor(d));
     merged.select('text').filter(function(){ return !d3.select(this).classed('node-attrs'); }).text(d => (state.sourceNodeId === d.id ? 'S' : (state.sinkNodeId === d.id ? 'T' : d.id)));
     
-    // MODIFIED: Show/hide node attrs based on algorithm
     merged.select('text.node-attrs')
-      .text(d => shouldShowNodeAttrs() ? `h:${state.heights[d.id] || 0} e:${state.excesses[d.id] || 0}` : '')
+      .text(d => {
+        if (!shouldShowNodeAttrs()) return '';
+        const h = state.heights[d.id] || 0;
+        if (d.id === state.sourceNodeId || d.id === state.sinkNodeId) return `h:${h}`;
+        const e = state.excesses[d.id] || 0;
+        return `h:${h} e:${e}`;
+      })
       .style('display', shouldShowNodeAttrs() ? null : 'none');
 
     sim.nodes(state.nodes);
@@ -441,9 +437,14 @@ document.addEventListener('DOMContentLoaded', () => {
     merged.select('circle').style('stroke', d => nodeColor(d));
     merged.select('text').filter(function(){ return !d3.select(this).classed('node-attrs'); }).text(d => (state.sourceNodeId === d.id ? 'S' : (state.sinkNodeId === d.id ? 'T' : d.id)));
     
-    // MODIFIED: Show/hide node attrs based on algorithm
     merged.select('text.node-attrs')
-      .text(d => shouldShowNodeAttrs() ? `h:${state.heights[d.id] || 0} e:${state.excesses[d.id] || 0}` : '')
+      .text(d => {
+        if (!shouldShowNodeAttrs()) return '';
+        const h = state.heights[d.id] || 0;
+        if (d.id === state.sourceNodeId || d.id === state.sinkNodeId) return `h:${h}`;
+        const e = state.excesses[d.id] || 0;
+        return `h:${h} e:${e}`;
+      })
       .style('display', shouldShowNodeAttrs() ? null : 'none');
   }
 
@@ -504,11 +505,10 @@ document.addEventListener('DOMContentLoaded', () => {
      HISTORY SYSTEM
      ============================================================================ */
   function resetForAlgorithm(clearHistory = true) {
-    // FIX #4: Only reset algorithm state, keep graph structure
     if (clearHistory) { 
       state.history = []; 
       state.currentStep = -1; 
-      state.currentAlgorithm = null;  // NEW: Clear algorithm tracking only when clearing history
+      state.currentAlgorithm = null;
     }
     state.links.forEach(l => setEdgeFlow(l, 0));
     state.heights = {}; state.excesses = {};
@@ -519,7 +519,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function clearGraph() {
-    // Full clear for "Clear All" button
     state.nodes = []; state.links = []; state.nodeIdCounter = 0;
     state.sourceNodeId = null; state.sinkNodeId = null;
     resetForAlgorithm(true);
@@ -560,7 +559,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /* ============================================================================
-     EDMONDS-KARP (FIX #1: Correct augmentation with edge references)
+     EDMONDS-KARP
      ============================================================================ */
   async function recordEdmondsKarp() {
     let maxFlow = 0;
@@ -574,7 +573,6 @@ document.addEventListener('DOMContentLoaded', () => {
       
       const { path, pathFlow, edgeSequence } = pinfo;
       
-      // FIX #1: Apply augmentation using stored edge references
       edgeSequence.forEach(({edge, isBackward}) => {
         if (isBackward) {
           setEdgeFlow(edge, edge.flow - pathFlow);
@@ -596,7 +594,6 @@ document.addEventListener('DOMContentLoaded', () => {
     logStep('FINISH', {});
   }
 
-  // FIX #1: Store edge references in parent map
   async function ekBfsAsync() {
     const parent = {};
     const q = [state.sourceNodeId];
@@ -612,7 +609,6 @@ document.addEventListener('DOMContentLoaded', () => {
       logStep('STATUS', { text: `BFS: explore ${u}` });
       logStep('HIGHLIGHT_NODE', { nodeId: u, color: '#f59e0b' });
 
-      // Forward edges
       for (const e of state.links) {
         const srcId = typeof e.source === 'object' ? e.source.id : e.source;
         const tgtId = typeof e.target === 'object' ? e.target.id : e.target;
@@ -626,7 +622,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
       
-      // Backward edges
       if (u !== state.sinkNodeId) {
         for (const e of state.links) {
           const srcId = typeof e.source === 'object' ? e.source.id : e.source;
@@ -655,7 +650,6 @@ document.addEventListener('DOMContentLoaded', () => {
       return null;
     }
     
-    // Reconstruct path and compute bottleneck from stored edges
     let path = [];
     let edgeSequence = [];
     let pathFlow = Infinity;
@@ -666,8 +660,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const parentInfo = parent[cur];
       if (parentInfo.prev !== -1) {
         edgeSequence.unshift({ edge: parentInfo.edge, isBackward: parentInfo.isBackward });
-        
-        // FIX #1: Compute bottleneck from stored edge
         if (parentInfo.isBackward) {
           pathFlow = Math.min(pathFlow, parentInfo.edge.flow);
         } else {
@@ -684,7 +676,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /* ============================================================================
-     FORD-FULKERSON (FIX #1: Same edge reference fix)
+     FORD-FULKERSON
      ============================================================================ */
   async function recordFordFulkerson() {
     logStep('STATUS', { text: 'Ford-Fulkerson (DFS) start' });
@@ -703,12 +695,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       
       const { path, pathFlow, edgeSequence } = found;
-      
-      // NEW: Highlight the found path in blue
       logStep('STATUS', { text: `FF: path ${path.join(' → ')} bottleneck ${pathFlow}` });
       logStep('HIGHLIGHT_PATH', { path, color: '#3b82f6' });
       
-      // FIX #1: Apply using edge references
       edgeSequence.forEach(({edge, isBackward}) => {
         if (isBackward) {
           setEdgeFlow(edge, edge.flow - pathFlow);
@@ -745,7 +734,6 @@ document.addEventListener('DOMContentLoaded', () => {
       const srcId = typeof e.source === 'object' ? e.source.id : e.source;
       const tgtId = typeof e.target === 'object' ? e.target.id : e.target;
       
-      // Forward
       if (srcId === u && (e.capacity - e.flow > 0) && !visited.has(tgtId)) {
         logStep('STATUS', { text: `DFS: try forward ${u}→${tgtId}` });
         const newFlow = Math.min(flow, e.capacity - e.flow);
@@ -758,7 +746,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
       
-      // Backward
       if (tgtId === u && u !== state.sinkNodeId && e.flow > 0 && !visited.has(srcId)) {
         logStep('STATUS', { text: `DFS: try backward ${u}←${srcId}` });
         const newFlow = Math.min(flow, e.flow);
@@ -777,137 +764,210 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /* ============================================================================
-     PUSH-RELABEL (FIX #5: Correct preflow algorithm + live visual updates)
+     CORRECT PUSH-RELABEL (Goldberg-Tarjan with explicit residual adjacency)
      ============================================================================ */
-  async function recordPushRelabel() {
-    logStep('STATUS', { text: 'Push-Relabel: initialize' });
-    const n = state.nodes.length;
-    const heights = {}, excess = {};
-    state.nodes.forEach(nd => { heights[nd.id] = 0; excess[nd.id] = 0; });
-    heights[state.sourceNodeId] = n;
-    // Update global visual state so the UI can reflect heights/excesses live
-    state.heights = {...heights};
-    state.excesses = {...excess};
-    updateBoth();
-    logStep('SET_ALL_ATTRIBUTES', { heights: {...heights}, excesses: {...excess}, oldHeights: {}, oldExcesses: {} });
 
-    // Saturate source outgoing edges
-    for (const e of state.links) {
-      const srcId = typeof e.source === 'object' ? e.source.id : e.source;
-      if (srcId === state.sourceNodeId) {
-        const amt = e.capacity;
-        const tgtId = typeof e.target === 'object' ? e.target.id : e.target;
-        const oldEx = {...excess};
-        setEdgeFlow(e, amt);
-        excess[srcId] = (excess[srcId] || 0) - amt;
-        excess[tgtId] = (excess[tgtId] || 0) + amt;
-        // live update
-        state.links = state.links; // no-op but keep reference
-        state.excesses = {...excess};
-        updateBoth();
-        logStep('PUSH', { from: srcId, to: tgtId, amount: amt, oldFlow: 0, oldExcesses: oldEx });
-        (function(){ const __l = e; const __src = (typeof __l.source==='object'?__l.source.id:__l.source); const __tgt = (typeof __l.target==='object'?__l.target.id:__l.target); logStep('HIGHLIGHT_LINK', { source: __src, target: __tgt, color: '#f59e0b'  }); })();
-        (function(){ const __l = e; const __src = (typeof __l.source==='object'?__l.source.id:__l.source); const __tgt = (typeof __l.target==='object'?__l.target.id:__l.target); logStep('HIGHLIGHT_LINK', { source: __src, target: __tgt, color: null  }); })();
-      }
-    }
-
-    let loopCount = 0;
-    let active;
-    // choose highest-height active node (fix for custom graphs)
-    while ((active = (() => {
-      const activeCandidates = state.nodes.map(n => n.id).filter(id => id !== state.sourceNodeId && id !== state.sinkNodeId && (excess[id] || 0) > 0);
-      if (activeCandidates.length === 0) return undefined;
-      activeCandidates.sort((a,b) => (heights[b] || 0) - (heights[a] || 0));
-      return activeCandidates[0];
-    })()) !== undefined) {
-      logStep('STATUS', { text: `PR: active node ${active} (excess ${excess[active]})` });
-      logStep('HIGHLIGHT_NODE', { nodeId: active, color: '#3b82f6' });
-
-      let pushedAny = false;
+  function buildResidualAdjacency() {
+    const n = state.nodeIdCounter;
+    const resAdj = Array.from({length: n}, () => []);
+    const edgeMap = new Map();
+    
+    for (let i = 0; i < state.links.length; i++) {
+      const l = state.links[i];
+      const u = l.source;
+      const v = l.target;
       
-      for (const e of state.links) {
-        if ((excess[active] || 0) === 0) break;
-        
-        const srcId = typeof e.source === 'object' ? e.source.id : e.source;
-        const tgtId = typeof e.target === 'object' ? e.target.id : e.target;
-        
-        // Forward push
-        if (srcId === active && heights[active] === (heights[tgtId] || 0) + 1) {
-          const residual = e.capacity - e.flow;
-          if (residual > 0) {
-            const amt = Math.min(excess[active], residual);
-            const oldEx = {...excess};
-            logStep('PUSH', { from: active, to: tgtId, amount: amt, oldFlow: e.flow, oldExcesses: oldEx });
-            setEdgeFlow(e, e.flow + amt);
-            excess[active] -= amt;
-            excess[tgtId] = (excess[tgtId] || 0) + amt;
-            pushedAny = true;
-            // live update
-            state.links = state.links;
-            state.excesses = {...excess};
-            updateBoth();
-            await yieldFrame();
-          }
-        }
-        
-        // Backward push
-        if (tgtId === active && heights[active] === (heights[srcId] || 0) + 1) {
-          const residual = e.flow;
-          if (residual > 0) {
-            const amt = Math.min(excess[active], residual);
-            const oldEx = {...excess};
-            logStep('PUSH', { from: active, to: srcId, amount: amt, oldFlow: e.flow, oldExcesses: oldEx, isReverse:true });
-            setEdgeFlow(e, e.flow - amt);
-            excess[active] -= amt;
-            excess[srcId] = (excess[srcId] || 0) + amt;
-            pushedAny = true;
-            // live update
-            state.links = state.links;
-            state.excesses = {...excess};
-            updateBoth();
-            await yieldFrame();
-          }
-        }
-      }
-
-      if (!pushedAny && (excess[active] || 0) > 0) {
-        // Relabel
-        let minH = Infinity;
-        for (const e of state.links) {
-          const srcId = typeof e.source === 'object' ? e.source.id : e.source;
-          const tgtId = typeof e.target === 'object' ? e.target.id : e.target;
-          
-          if (srcId === active && (e.capacity - e.flow) > 0) minH = Math.min(minH, heights[tgtId] || 0);
-          if (tgtId === active && e.flow > 0) minH = Math.min(minH, heights[srcId] || 0);
-        }
-        if (minH < Infinity) {
-          const oldH = heights[active];
-          heights[active] = minH + 1;
-          // live update
-          state.heights = {...heights};
-          updateBoth();
-          logStep('RELABEL', { nodeId: active, newHeight: heights[active], oldHeight: oldH });
-          await yieldFrame();
-        }
-      }
-      logStep('HIGHLIGHT_NODE', { nodeId: active, color: null });
+      const forwardCap = Math.max(0, l.capacity - (l.flow || 0));
+      const forwardIdx = resAdj[u].length;
+      const backIdx = resAdj[v].length;
       
-      loopCount++;
-      if (loopCount % 20 === 0) await yieldFrame();
+      resAdj[u].push({ to: v, cap: forwardCap, rev: backIdx, orig: { linkIdx: i, isForward: true } });
+      resAdj[v].push({ to: u, cap: Math.max(0, l.flow || 0), rev: forwardIdx, orig: { linkIdx: i, isForward: false } });
+      
+      edgeMap.set(i, { u, fwdIdx: forwardIdx });
     }
     
-    const flowIntoSink = state.links.reduce((acc,e) => {
-      const tgtId = typeof e.target === 'object' ? e.target.id : e.target;
-      return tgtId === state.sinkNodeId ? acc + (e.flow || 0) : acc;
-    }, 0);
-    maxFlowSet(flowIntoSink);
-    logStep('STATUS', { text: `Push-Relabel complete. Max flow = ${flowIntoSink}` });
-    logStep('MAX_FLOW', { value: flowIntoSink, oldValue: 0 });
-    logStep('FINISH', {});
-    // final snapshot update
-    state.heights = {...heights};
-    state.excesses = {...excess};
+    return { resAdj, edgeMap };
+  }
+
+  function writeBackFlows(resAdj, edgeMap) {
+    for (const [i, meta] of edgeMap.entries()) {
+      const l = state.links[i];
+      const fwd = resAdj[meta.u][meta.fwdIdx];
+      const remForwardCap = fwd.cap;
+      const newFlow = l.capacity - remForwardCap;
+      l.flow = Math.max(0, Math.min(l.capacity, newFlow));
+    }
+  }
+
+  function resPush(resAdj, u, edgeIdx, amt) {
+    const e = resAdj[u][edgeIdx];
+    if (amt <= 0) return 0;
+    if (e.cap < amt) amt = e.cap;
+    e.cap -= amt;
+    const v = e.to;
+    const rev = resAdj[v][e.rev];
+    rev.cap += amt;
+    return amt;
+  }
+
+  function highestActive(excess, heights, n, s, t) {
+    let best = -1, bestH = -Infinity;
+    for (let v = 0; v < n; v++) {
+      if (v === s || v === t) continue;
+      if ((excess[v] || 0) > 1e-9) { // Use epsilon for floating point comparison
+        const h = heights[v] || 0;
+        if (h > bestH) { bestH = h; best = v; }
+      }
+    }
+    return best;
+  }
+
+  async function recordPushRelabel() {
+    logStep('STATUS', { text: 'Push-Relabel (Goldberg-Tarjan) initialize' });
+
+    if (state.sourceNodeId == null || state.sinkNodeId == null) {
+      log('Set source and sink first.');
+      return;
+    }
+
+    const { resAdj, edgeMap } = buildResidualAdjacency();
+    const n = state.nodeIdCounter;
+    const s = state.sourceNodeId;
+    const t = state.sinkNodeId;
+
+    const heights = Array(n).fill(0);
+    const excess = Array(n).fill(0);
+
+    heights[s] = n;
+    heights[t] = 0;
+
+    for (let i = 0; i < state.links.length; i++) {
+      const l = state.links[i];
+      if (l.source !== s) continue;
+      const meta = edgeMap.get(i);
+      if (!meta) continue;
+      const initialCap = resAdj[s][meta.fwdIdx].cap;
+      if (initialCap > 0) {
+        const pushed = resPush(resAdj, s, meta.fwdIdx, initialCap);
+        excess[s] -= pushed;
+        excess[l.target] += pushed;
+        logStep('PUSH', { from: s, to: l.target, amount: pushed, oldFlow: 0, oldExcesses: {...arrayToObject(excess)} });
+        state.heights = arrayToObject(heights);
+        state.excesses = arrayToObject(excess);
+        writeBackFlows(resAdj, edgeMap);
+        updateBoth();
+        await yieldFrame();
+      }
+    }
+
+    function relabelNode(v) {
+      let minH = Infinity;
+      for (let ei = 0; ei < resAdj[v].length; ei++) {
+        const e = resAdj[v][ei];
+        if (e.cap > 1e-9) { // Use epsilon for floating point comparison
+          minH = Math.min(minH, heights[e.to]);
+        }
+      }
+      if (minH === Infinity) {
+        // No outgoing residual edges - this shouldn't happen for active nodes
+        logStep('STATUS', { text: `WARNING: Node ${v} has excess but no residual edges!` });
+        return false;
+      }
+      const oldH = heights[v];
+      heights[v] = minH + 1;
+      state.heights = arrayToObject(heights);
+      logStep('RELABEL', { nodeId: v, oldHeight: oldH, newHeight: heights[v] });
+      writeBackFlows(resAdj, edgeMap);
+      updateBoth();
+      return true;
+    }
+
+    async function dischargeNode(v) {
+      let currentEdge = 0; // Current edge index for discharge
+      while ((excess[v] || 0) > 1e-9) {
+        if (currentEdge >= resAdj[v].length) {
+          // Scanned all edges, need relabel
+          const ok = relabelNode(v);
+          if (!ok) {
+            logStep('STATUS', { text: `Relabel failed for ${v}: no residual edges` });
+            break;
+          }
+          currentEdge = 0; // Reset after relabel
+          await yieldFrame();
+          continue;
+        }
+
+        const e = resAdj[v][currentEdge];
+        const w = e.to;
+        
+        // Check if this is an admissible edge
+        if (e.cap > 1e-9 && heights[v] === heights[w] + 1) {
+          // Admissible edge found, push
+          const beforeEx = {...arrayToObject(excess)};
+          const pushAmount = Math.min(excess[v], e.cap);
+          const pushed = resPush(resAdj, v, currentEdge, pushAmount);
+          
+          if (pushed > 1e-9) {
+            excess[v] -= pushed;
+            excess[w] += pushed;
+            logStep('PUSH', { from: v, to: w, amount: pushed, oldExcesses: beforeEx });
+            state.excesses = arrayToObject(excess);
+            state.heights = arrayToObject(heights);
+            writeBackFlows(resAdj, edgeMap);
+            updateBoth();
+            await yieldFrame();
+            
+            if ((excess[v] || 0) < 1e-9) break;
+          }
+        }
+        
+        currentEdge++; // Move to next edge
+      }
+    }
+
+    let iter = 0;
+    while (true) {
+      const v = highestActive(excess, heights, state.nodeIdCounter, s, t);
+      if (v === -1) break;
+      logStep('STATUS', { text: `PR: discharge node ${v} (excess ${excess[v]}, height ${heights[v]})` });
+      logStep('HIGHLIGHT_NODE', { nodeId: v, color: '#3b82f6' });
+      await dischargeNode(v);
+      logStep('HIGHLIGHT_NODE', { nodeId: v, color: null });
+      iter++;
+      if ((iter & 31) === 0) await yieldFrame();
+    }
+
+    writeBackFlows(resAdj, edgeMap);
+
+    let feasible = true;
+    for (let v = 0; v < state.nodeIdCounter; v++) {
+      if (v === s || v === t) continue;
+      if (Math.abs(excess[v] || 0) > 1e-9) {
+        feasible = false;
+        logStep('STATUS', { text: `ERROR: nonzero internal excess at ${v}: ${excess[v]}` });
+      }
+    }
+
+    const totalFlow = state.links.reduce((acc, l) => acc + ((l.target === t) ? (l.flow || 0) : 0), 0);
+    setMaxFlow(totalFlow);
+
+    excess[s] = 0; 
+    excess[t] = 0;
+    state.heights = arrayToObject(heights);
+    state.excesses = arrayToObject(excess);
     updateBoth();
+
+    if (feasible) logStep('STATUS', { text: `Push-Relabel complete. Max flow = ${totalFlow} (feasible)` });
+    else logStep('STATUS', { text: `Push-Relabel complete. Max flow = ${totalFlow} (INFEASIBLE)` });
+
+    logStep('FINISH', {});
+  }
+
+  function arrayToObject(arr) {
+    const o = {};
+    for (let i = 0; i < arr.length; i++) o[i] = arr[i];
+    return o;
   }
 
   function maxFlowInc(delta) {
@@ -916,31 +976,22 @@ document.addEventListener('DOMContentLoaded', () => {
     logStep('MAX_FLOW', { value: cur + delta, oldValue: cur });
   }
   
-  function maxFlowSet(val) {
+  function setMaxFlow(val) {
     const old = parseFloat(dom.maxFlowText.textContent || 0);
     dom.maxFlowText.textContent = val.toString();
     logStep('MAX_FLOW', { value: val, oldValue: old });
   }
 
   /* ============================================================================
-     STEP PLAYBACK
+     STEP APPLICATION & PLAYBACK
      ============================================================================ */
   function applyStep(step, forward=true) {
     const type = step.type, p = step.payload;
     const isForward = forward;
-    
     switch (type) {
-      case 'STATUS': 
-        if (isForward) log(p.text); 
-        break;
-        
-      case 'MAX_FLOW': 
-        dom.maxFlowText.textContent = isForward ? p.value : p.oldValue; 
-        break;
-        
-      case 'FINISH': 
-        state.isRunning = false; 
-        break;
+      case 'STATUS': if (isForward) log(p.text); break;
+      case 'MAX_FLOW': dom.maxFlowText.textContent = isForward ? p.value : p.oldValue; break;
+      case 'FINISH': state.isRunning = false; break;
 
       case 'HIGHLIGHT_NODE': {
         const nid = p.nodeId, color = isForward ? p.color : null;
@@ -965,87 +1016,60 @@ document.addEventListener('DOMContentLoaded', () => {
         break;
       }
 
-      case 'HIGHLIGHT_LINK': {
-  const srcId = p.source;
-  const tgtId = p.target;
-  if (srcId == null || tgtId == null) break;
-  // highlight in both original and residual link groups if present
-  if (typeof originalLinksG !== 'undefined') {
-    originalLinksG.selectAll('path.link').filter(d => d.source.id===srcId && d.target.id===tgtId)
-      .transition().duration(120).style('stroke', p.color || '#6b7280');
-  }
-  if (typeof residualLinksG !== 'undefined') {
-    residualLinksG.selectAll('path.link').filter(d => d.source.id===srcId && d.target.id===tgtId)
-      .transition().duration(120).style('stroke', p.color || '#6b7280');
-  }
-  break;
-}
-
-      case 'AUGMENT': {
-        if (step.snapshot) { restoreState(step.snapshot); } else if (isForward) {
-          updateBoth();
-        }
-        break;
-      }
-
-      case 'SET_ALL_ATTRIBUTES':
-        if (step.snapshot) { restoreState(step.snapshot); } else {
-          state.heights = isForward ? p.heights : p.oldHeights;
-          state.excesses = isForward ? p.excesses : p.oldExcesses;
-          updateBoth();
-        }
-        break;
-
+      case 'AUGMENT':
+      case 'PUSH':
       case 'RELABEL':
-        if (step.snapshot) { restoreState(step.snapshot); } else {
-          state.heights[p.nodeId] = isForward ? p.newHeight : p.oldHeight;
-          updateBoth();
+      case 'SET_ALL_ATTRIBUTES':
+        if (step.snapshot) { 
+          restoreState(step.snapshot); 
         }
         break;
-
-      case 'PUSH': {
-        if (step.snapshot) { restoreState(step.snapshot); } else {
-          state.excesses = isForward ? (() => { const ne = {...p.oldExcesses}; ne[p.from] -= p.amount; ne[p.to] += p.amount; return ne; })() : p.oldExcesses;
-          updateBoth();
-        }
-        break;
-      }
     }
   }
 
-  /* ============================================================================
-     PLAYBACK CONTROLS
-     ============================================================================ */
   function stepForward() {
     if (state.currentStep >= state.history.length - 1) return;
     state.currentStep++;
-    applyStep(state.history[state.currentStep], true);
+    const step = state.history[state.currentStep];
+    if (step.snapshot) {
+      restoreState(step.snapshot);
+    }
+    applyStep(step, true);
     updateStepUI();
   }
   
   function stepBackward() {
     if (state.currentStep < 0) return;
-    applyStep(state.history[state.currentStep], false);
+    const step = state.history[state.currentStep];
+    if (step.snapshot) {
+      // For backward, we need to restore the previous snapshot
+      if (state.currentStep > 0) {
+        restoreState(state.history[state.currentStep - 1].snapshot);
+      } else {
+        // Going back before step 0 - reset to initial state
+        resetForAlgorithm(false);
+      }
+    }
+    applyStep(step, false);
     state.currentStep--;
     updateStepUI();
   }
   
-  function step(dir) {
-    stopPlay();
-    if (dir === 1) stepForward(); 
-    else stepBackward();
-  }
-
   async function playLoop() {
     state.playAbortFlag = false;
     const delayMs = Math.max(50, 2050 - dom.speedSlider.value);
+    
+    // If at the end, restart from beginning
+    if (state.currentStep >= state.history.length - 1) {
+      state.currentStep = -1;
+      resetForAlgorithm(false);
+    }
     
     while (!state.playAbortFlag && state.currentStep < state.history.length - 1) {
       stepForward();
       await sleep(delayMs);
       await yieldFrame();
     }
-    
     state.isPlaying = false;
     dom.playPauseBtn.textContent = 'Play';
   }
@@ -1054,10 +1078,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (state.isPlaying) {
       stopPlay();
     } else {
-      if (state.currentStep >= state.history.length - 1) { 
-        state.currentStep = -1; 
-        resetForAlgorithm(false); 
-      }
       state.isPlaying = true; 
       dom.playPauseBtn.textContent = 'Pause';
       playLoop();
@@ -1066,10 +1086,10 @@ document.addEventListener('DOMContentLoaded', () => {
   
   function stopPlay() { 
     state.isPlaying = false; 
-    state.playAbortFlag = true;
+    state.playAbortFlag = true; 
     dom.playPauseBtn.textContent = 'Play'; 
   }
-
+  
   function updateStepUI() {
     dom.stepCounter.textContent = `Step ${Math.max(0, state.currentStep + 1)} / ${state.history.length}`;
     dom.prevStepBtn.disabled = state.currentStep < 0;
@@ -1078,22 +1098,16 @@ document.addEventListener('DOMContentLoaded', () => {
     dom.playPauseBtn.textContent = state.isPlaying ? 'Pause' : 'Play';
   }
 
-  /* ============================================================================
-     ALGORITHM RUNNER
-     ============================================================================ */
   async function prepareAndRecord() {
     if (state.isRunning) return;
     if (state.sourceNodeId === null || state.sinkNodeId === null) {
       log('Set source and sink first.'); 
       return;
     }
-    
     setRunning(true);
     resetForAlgorithm(true);
-    
     const algo = document.querySelector('input[name="algorithm"]:checked').value;
-    state.currentAlgorithm = algo;  // NEW: Set current algorithm
-    
+    state.currentAlgorithm = algo;
     try {
       if (algo === 'ek') await recordEdmondsKarp();
       else if (algo === 'ff') await recordFordFulkerson();
@@ -1102,12 +1116,20 @@ document.addEventListener('DOMContentLoaded', () => {
       log('Error: ' + err.message);
       console.error(err);
     }
-    resetForAlgorithm(false);
-    state.currentStep = -1;
+    // Recording complete — do NOT auto-apply steps. Reset displayed state to initial and enable controls.
+    if (state.history.length > 0) {
+      state.currentStep = -1;
+      // ensure displayed flows are reset to initial zero state
+      resetForAlgorithm(false); // keep history, but reset displayed flows
+      // rebuild DOM and restart simulation to avoid missing edges
+      updateBoth();
+      if (typeof sim !== 'undefined' && sim && sim.alpha) sim.alpha(0.3).restart();
+    }
+
     setRunning(false);
     updateStepUI();
-    log('Recording complete. Press Play to visualize.');
-  }
+    log('Algorithm recorded. Use step controls or Play to step through execution.');
+    }
 
   function setRunning(flag) {
     state.isRunning = flag;
@@ -1116,9 +1138,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!flag) stopPlay();
   }
 
-  /* ============================================================================
-     UI INTERACTION
-     ============================================================================ */
   function setMode(m) {
     if (state.isRunning) return;
     if (state.currentMode === FSM.ADD_EDGE && state.edgeCreationStep === 1 && state.tempEdgeSourceId !== null) {
@@ -1156,7 +1175,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /* ============================================================================
-     EVENT BINDINGS
+     EVENT LISTENERS
      ============================================================================ */
   dom.addNode.addEventListener('click', ()=> setMode(FSM.ADD_NODE));
   dom.addEdge.addEventListener('click', ()=> setMode(FSM.ADD_EDGE));
@@ -1165,10 +1184,9 @@ document.addEventListener('DOMContentLoaded', () => {
   dom.runBtn.addEventListener('click', prepareAndRecord);
   dom.resetBtn.addEventListener('click', ()=> { if (!state.isRunning) resetForAlgorithm(true); });
   dom.clearBtn.addEventListener('click', ()=> { if (!state.isRunning) clearGraph(); });
-  dom.prevStepBtn.addEventListener('click', ()=> step(-1));
-  dom.nextStepBtn.addEventListener('click', ()=> step(1));
+  dom.prevStepBtn.addEventListener('click', ()=> stepBackward());
+  dom.nextStepBtn.addEventListener('click', ()=> stepForward());
   dom.playPauseBtn.addEventListener('click', togglePlay);
-  
   dom.graphSelect.addEventListener('change', (e)=> { 
     if (e.target.value !== 'custom') {
       loadPredefined(e.target.value);
@@ -1178,11 +1196,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  /* ============================================================================
-     INITIALIZATION
-     ============================================================================ */
   setupSvgs();
-  
   (function wrapUpdateOriginalForClicks() {
     const orig = updateOriginal;
     updateOriginal = function() {
@@ -1193,9 +1207,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   updateBoth();
   updateStepUI();
-  log('Max-Flow Visualizer ready (ALL BUGS FIXED)');
+  log('Max-Flow Visualizer ready (Push-Relabel: Goldberg-Tarjan with explicit residual adjacency)');
 
-  // Dark mode
   (function initDark() {
     const isDark = localStorage.getItem('theme') === 'dark' || (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
     if (isDark) {
@@ -1231,5 +1244,4 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 
 </body>
-
 </html>
