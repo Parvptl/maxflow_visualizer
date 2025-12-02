@@ -1,149 +1,243 @@
-🌐 Max-Flow Hub
-Interactive Visual Learning Suite for Maximum Flow Algorithms
-<p align="center"> <img src="https://img.shields.io/badge/Status-Active-success?style=flat-square"> <img src="https://img.shields.io/badge/Tech-D3.js-blue?style=flat-square"> <img src="https://img.shields.io/badge/Style-TailwindCSS-38bdf8?style=flat-square"> <img src="https://img.shields.io/badge/Algorithms-FF%2C%20EK%2C%20PR-orange?style=flat-square"> <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square"> </p> <p align="center"> <b>Visualize. Learn. Interact.</b><br> A complete suite for understanding network flow algorithms through intuitive, interactive visualizations. </p>
-🚀 Live Demo
+# 🌊 Max-Flow Hub
 
-👉 https://flow.parvpatel.me
+<p align="center">
+  <img src="https://img.shields.io/badge/Status-Active-success?style=for-the-badge">
+  <img src="https://img.shields.io/badge/Tech-D3.js-FF6B6B?style=for-the-badge&logo=d3.js">
+  <img src="https://img.shields.io/badge/Style-Tailwind-06B6D4?style=for-the-badge&logo=tailwindcss">
+  <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge">
+</p>
 
-📸 Screenshots
+<p align="center">
+  <strong>Master network flow algorithms through interactive visualization</strong><br>
+  <em>See the algorithms. Understand the theory. Build intuition.</em>
+</p>
 
-Replace the placeholders below with actual screenshots.
+<p align="center">
+  <a href="https://flow.parvpatel.me">🚀 Live Demo</a> •
+  <a href="#features">✨ Features</a> •
+  <a href="#getting-started">🎯 Quick Start</a> •
+  <a href="#algorithms">🧠 Algorithms</a>
+</p>
 
-🔹 Home Dashboard
-<p align="center"><img src="screenshots/home.png" width="80%"></p>
-🔹 Max-Flow Visualizer
-<p align="center"><img src="screenshots/visualizer.png" width="80%"></p>
-🔹 Residual Graph Visualizer
-<p align="center"><img src="screenshots/residual.png" width="80%"></p>
-🔹 Max-Flow Min-Cut Theorem Visualizer
-<p align="center"><img src="screenshots/theorem.png" width="80%"></p>
-🔹 Time Complexity Comparison
-<p align="center"><img src="screenshots/complexity.png" width="80%"></p>
-🎯 Overview
+---
 
-Max-Flow Hub is an interactive educational platform that teaches the Maximum Flow problem through rich visualizations, real-time simulations, and detailed algorithm walkthroughs.
+## 🎯 What is Max-Flow Hub?
 
-It contains five main modules:
+Max-Flow Hub is an **interactive educational platform** that transforms abstract network flow concepts into intuitive visual experiences. Whether you're a student learning graph algorithms, an educator teaching computer science, or a developer brushing up on optimization techniques, this tool makes complex maximum flow algorithms accessible and engaging.
 
-Module	Description
-Home	Central dashboard linking to all visual tools
-Visualizer	Build custom graphs, run algorithms step-by-step
-Residual Graph	Understand forward/backward residual capacities
-Theorems	Interactive Max-Flow Min-Cut demonstration
-Complexity	Dynamic runtime comparison with D3 charts
-🧠 Algorithms Included
-✔ Edmonds–Karp (EK)
+### Why Max-Flow Hub?
 
-BFS-based augmenting paths
+- **🎨 Visual Learning**: Watch algorithms execute step-by-step with animated transitions
+- **🛠️ Interactive**: Build custom graphs, adjust parameters, and experiment in real-time
+- **📚 Comprehensive**: Five integrated modules covering theory, practice, and analysis
+- **⚡ No Setup**: Pure client-side application—just open and start learning
+- **🎓 Educational**: Detailed logs, explanations, and theorem demonstrations
 
-Guaranteed polynomial time
+---
 
-Full step log + path highlighting
+## ✨ Features
 
-✔ Push-Relabel (PR)
+### 🎪 Five Integrated Learning Modules
 
-Height function
+#### 1️⃣ **Home Dashboard**
+Central hub providing quick access to all visualization tools with elegant navigation.
 
-Excess flow
+#### 2️⃣ **Algorithm Visualizer**
+The core experience—build graphs and watch algorithms solve them in real-time.
 
-Push / Relabel steps
+- **Graph Builder**: Click to add nodes and edges with custom capacities
+- **Preset Graphs**: Load standard examples instantly
+- **Algorithm Selection**: Choose between Edmonds-Karp, Ford-Fulkerson, or Push-Relabel
+- **Playback Controls**: Play, pause, step forward/backward through execution
+- **Speed Control**: Adjust animation speed to your learning pace
+- **Detailed Logging**: Every BFS/DFS traversal, augmentation, and flow update recorded
 
-FIFO variant
+#### 3️⃣ **Residual Graph Explorer**
+Understand the heart of flow algorithms—residual networks.
 
-✔ Ford–Fulkerson (FF)
+- Visualize forward edges (remaining capacity)
+- See backward edges (flow reversal opportunities)
+- Watch residual graph evolve with each augmentation
+- Color-coded edges for intuitive understanding
 
-DFS-based augmenting paths
+#### 4️⃣ **Max-Flow Min-Cut Theorem**
+Interactive proof that max flow equals min cut.
 
-Included in visualizer (removed from complexity section)
+- Build a graph and find its maximum flow
+- Visualize the minimum cut automatically
+- See cut capacity calculation in real-time
+- Understand the fundamental theorem through interaction
 
-🛠️ Tech Stack
-Layer	Technology
-Frontend	HTML5, TailwindCSS, D3.js
-Visualization Engine	D3 force-simulation, SVG-based drawing
-Algorithm Logic	Pure vanilla JavaScript
-UX	Smooth animations, dark mode, playback controls
-🔍 Features
-🎨 Interactive Graph Builder
+#### 5️⃣ **Complexity Analyzer**
+Compare algorithm performance with dynamic charts.
 
-Add nodes
+- Adjustable graph parameters (vertices, edge density)
+- Side-by-side runtime comparison
+- Log-scale visualization for clear trends
+- Understand when to use each algorithm
 
-Add edges with custom capacity
+---
 
-Set source and sink
+## 🧠 Algorithms
 
-Predefined graphs
+### Edmonds-Karp (EK)
+**BFS-based augmenting paths**
 
-▶️ Step-by-Step Algorithm Execution
+- **Time Complexity**: O(VE²)
+- **Best For**: General-purpose, guaranteed polynomial time
+- **Visualization**: BFS tree exploration, shortest augmenting paths
 
-Play / pause
+### Ford-Fulkerson (FF)
+**DFS-based augmenting paths**
 
-Previous / next step navigation
+- **Time Complexity**: O(E · max_flow) — pseudo-polynomial
+- **Best For**: Small max-flow values, simple implementation
+- **Visualization**: DFS stack traversal, augmentation sequences
 
-Speed control
+### Push-Relabel (PR)
+**Local preflow operations**
 
-Full log of BFS/DFS/PR events
+- **Time Complexity**: O(V²E) — FIFO variant
+- **Best For**: Dense graphs, parallelizable operations
+- **Visualization**: Height labels, excess flow, push/relabel steps
 
-🔄 Residual Graph Engine
+---
 
-Forward edges (capacity – flow)
+## 🛠️ Tech Stack
 
-Backward edges (flow)
+| Layer | Technology |
+|-------|-----------|
+| **Frontend** | HTML5, CSS3, JavaScript (ES6+) |
+| **Styling** | Tailwind CSS 3.x |
+| **Visualization** | D3.js v7 (force simulation, SVG manipulation) |
+| **Architecture** | Pure vanilla JS—no build tools required |
+| **Deployment** | Static hosting (works anywhere) |
 
-Automatic updates after each augmentation
+---
 
-🧮 Theorem Visualizations
+## 🚀 Getting Started
 
-Max-Flow = Min-Cut demonstration
+### Prerequisites
 
-Cut-set highlighting
+None! This is a pure client-side application.
 
-Real-time curve drawing
+### Installation
 
-📊 Complexity Analyzer
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/maxflow-hub.git
 
-Adjustable V (vertices)
-
-Adjustable density (%)
-
-Log-scale comparison of EK, FF, PR
-
-📁 Project Structure
-📦 Max-Flow Hub
-│
-├── index.html           # Home Dashboard
-├── maxflow.html         # Visualizer
-├── residual.html        # Residual Graph Demo
-├── theorems.html        # Max-Flow Min-Cut Theorem
-└── complexity.html      # Time Complexity Comparison
-
-🧪 Local Setup
-
-No installation required.
-
-git clone <your-repo-url>
+# Navigate to the project
 cd maxflow-hub
 
+# Open in browser
+open index.html
+# or simply double-click index.html
+```
 
-Then simply open:
+That's it! No npm install, no build process, no server needed.
 
-index.html
+### Using the Visualizer
+
+1. **Open the Visualizer** from the home dashboard
+2. **Build a graph**:
+   - Click "Add Node" to create vertices
+   - Click two nodes to create an edge
+   - Enter capacity when prompted
+3. **Set source and sink** using the dropdowns
+4. **Select an algorithm** (EK, FF, or PR)
+5. **Click "Run"** and watch the magic happen!
+6. Use **playback controls** to step through the execution
 
 
-in any modern browser.
-(Chrome recommended for best D3 performance.)
+---
 
-📜 License
+## 📂 Project Structure
 
-This project is licensed under the MIT License.
+```
+maxflow-hub/
+│
+├── index.html              # Home dashboard & navigation
+├── maxflow.html           # Main algorithm visualizer
+├── residual.html          # Residual graph explorer
+├── theorems.html          # Max-Flow Min-Cut demonstration
+├── complexity.html        # Time complexity analyzer
+└── README.md             # You are here!
+```
 
-🙌 Credits
+---
 
-Built as part of the Visulizer Project, designed to make theoretical computer science more intuitive through interactive learning.
+## 🎓 Educational Use
 
-⭐ Support the Project
+Max-Flow Hub is designed for:
 
-If you found this helpful:
+- **Computer Science Students**: Visual intuition for abstract algorithms
+- **Educators**: Interactive teaching aid for graph theory courses
+- **Technical Interviewers**: Demonstrate problem-solving approaches
+- **Self-Learners**: Hands-on exploration of classic algorithms
 
-➡️ Star ⭐ the repository
-➡️ Share it with classmates
-➡️ Use it in your algorithm courses or workshops
+### Suggested Learning Path
+
+1. Start with **preset graphs** in the visualizer
+2. Run each algorithm and observe differences
+3. Explore the **residual graph** to understand capacity networks
+4. Prove the **Max-Flow Min-Cut theorem** interactively
+5. Compare **complexity** for different graph sizes
+6. Build **custom graphs** to test edge cases
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Here are some ideas:
+
+- Add more algorithms (Dinic's, Capacity Scaling)
+- Implement graph import/export
+- Add more preset graph examples
+- Improve mobile responsiveness
+- Translate to other languages
+
+### How to Contribute
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+---
+
+## 📝 License
+
+This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 🙏 Acknowledgments
+
+- **D3.js Community**: For incredible visualization capabilities
+- **Tailwind Labs**: For beautiful, utility-first styling
+- **Algorithm Pioneers**: Edmonds, Karp, Ford, Fulkerson, Goldberg, Tarjan
+- **Open Source Community**: For inspiration and tools
+
+---
+
+## ⭐ Show Your Support
+
+If Max-Flow Hub helped you understand network flow algorithms:
+
+- **Star** ⭐ this repository
+- **Share** with classmates and colleagues
+- **Use** in your courses or workshops
+- **Contribute** improvements and features
+
+---
+
+<p align="center">
+  <strong>Built with ❤️ for algorithm enthusiasts everywhere</strong><br>
+  <sub>Making theoretical computer science visual, interactive, and accessible</sub>
+</p>
+
+<p align="center">
+  <a href="https://flow.parvpatel.me">🌐 Visit Live Demo</a>
+</p>
